@@ -1,9 +1,15 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { useRef, useState } from 'react'
+import { OrbitControls, Stars } from '@react-three/drei'
+import { useEffect, useRef, useState } from 'react'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
-import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
+import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider, TimeOfDayControl } from '../components/LabUI.jsx'
 import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
+
+const JET_ATMOSPHERE = {
+  day: { sky: '#88cddd', fog: '#88cddd', cloud: '#fff9ed' },
+  evening: { sky: '#958cc4', fog: '#bc9fbe', cloud: '#eed4e8' },
+  night: { sky: '#122848', fog: '#233e63', cloud: '#7184a5' },
+}
 
 function Engine({ position }) {
   return (
@@ -15,12 +21,13 @@ function Engine({ position }) {
   )
 }
 
-function JumboModel({ pitch, bank, flaps }) {
+function JumboModel({ pitch, bank, flaps, time }) {
   const flapAngle = (flaps * Math.PI) / 150
+  const night = time === 'night'
   return (
     <group rotation={[(bank * Math.PI) / 180, 0, (-pitch * Math.PI) / 180]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><capsuleGeometry args={[0.62, 6.1, 12, 28]} /><meshStandardMaterial color="#fff8e9" roughness={0.58} /></mesh>
-      <mesh position={[0, 0.32, -1.4]} rotation={[Math.PI / 2, 0, 0]}><capsuleGeometry args={[0.5, 1.7, 8, 20]} /><meshStandardMaterial color="#fff8e9" /></mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><capsuleGeometry args={[0.62, 6.1, 12, 28]} /><meshStandardMaterial color={night ? '#dfe8f2' : '#fff8e9'} roughness={0.58} /></mesh>
+      <mesh position={[0, 0.32, -1.4]} rotation={[Math.PI / 2, 0, 0]}><capsuleGeometry args={[0.5, 1.7, 8, 20]} /><meshStandardMaterial color={night ? '#dfe8f2' : '#fff8e9'} /></mesh>
       <mesh position={[0, 0.03, 0.3]} castShadow><boxGeometry args={[8.7, 0.13, 1.5]} /><meshStandardMaterial color="#f0a9bd" roughness={0.72} /></mesh>
       <mesh position={[0, -0.03, 0.95]} rotation={[flapAngle, 0, 0]}><boxGeometry args={[6.5, 0.08, 0.48]} /><meshStandardMaterial color="#dd7185" /></mesh>
       <mesh position={[0, 0.15, 3.05]}><boxGeometry args={[3.25, 0.1, 0.8]} /><meshStandardMaterial color="#f0a9bd" /></mesh>
@@ -29,7 +36,7 @@ function JumboModel({ pitch, bank, flaps }) {
       {[[-2.45, -0.42, 0.1], [-1.2, -0.46, -0.25], [1.2, -0.46, -0.25], [2.45, -0.42, 0.1]].map((position, i) => <Engine key={i} position={position} />)}
       {Array.from({ length: 14 }, (_, i) => (
         <mesh key={i} position={[(i % 2 ? 1 : -1) * 0.6, 0.14, -2.5 + Math.floor(i / 2) * 0.65]}>
-          <circleGeometry args={[0.035, 10]} /><meshBasicMaterial color="#245c6b" /></mesh>
+          <circleGeometry args={[0.035, 10]} /><meshStandardMaterial color={night ? '#fff2a8' : '#245c6b'} emissive={night ? '#ffd968' : '#000000'} emissiveIntensity={night ? 2 : 0} /></mesh>
       ))}
       <mesh position={[-0.25, 0.26, -3.46]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.1, 12]} /><meshBasicMaterial color="#254c59" /></mesh>
       <mesh position={[0.25, 0.26, -3.46]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.1, 12]} /><meshBasicMaterial color="#254c59" /></mesh>
@@ -37,20 +44,23 @@ function JumboModel({ pitch, bank, flaps }) {
   )
 }
 
-function JetScene({ pitch, bank, flaps, speed, liftRatio }) {
+function JetScene({ pitch, bank, flaps, speed, liftRatio, time }) {
   const jet = useRef()
+  const atmosphere = JET_ATMOSPHERE[time]
   useFrame((state) => {
     if (jet.current) jet.current.position.y = Math.sin(state.clock.elapsedTime * 0.7) * 0.035
   })
   return (
     <>
-      <color attach="background" args={['#88cddd']} />
-      <fog attach="fog" args={['#88cddd', 16, 38]} />
-      <StudioLights />
-      <Cloud position={[-7, -1.6, -6]} scale={1.5} />
-      <Cloud position={[7, 2.8, -10]} scale={0.9} />
-      <Cloud position={[5, -2, 2]} scale={0.7} />
-      <group ref={jet}><JumboModel pitch={pitch} bank={bank} flaps={flaps} /></group>
+      <color attach="background" args={[atmosphere.sky]} />
+      <fog attach="fog" args={[atmosphere.fog, 16, 38]} />
+      <StudioLights time={time} />
+      <Cloud position={[-7, -1.6, -6]} scale={1.5} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      <Cloud position={[7, 2.8, -10]} scale={0.9} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      <Cloud position={[5, -2, 2]} scale={0.7} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      {time === 'evening' && <mesh position={[-8, 4.5, -14]}><sphereGeometry args={[0.75, 24, 18]} /><meshBasicMaterial color="#ffd0ac" /></mesh>}
+      {time === 'night' && <><Stars radius={28} depth={14} count={700} factor={2.2} saturation={0.15} fade speed={0.2} /><mesh position={[-8, 5, -15]}><sphereGeometry args={[0.52, 24, 18]} /><meshBasicMaterial color="#dce8ff" /></mesh></>}
+      <group ref={jet}><JumboModel pitch={pitch} bank={bank} flaps={flaps} time={time} /></group>
       <ForceArrow from={[0, 0.7, 0]} direction={[0, 1, 0]} length={Math.min(2.5, 0.7 + liftRatio * 0.8)} color="#e6543f" label="LIFT" />
       <ForceArrow from={[0, -0.6, 0]} direction={[0, -1, 0]} length={1.5} color="#2d6171" label="WEIGHT" />
       <ForceArrow from={[0, -0.15, 2.4]} direction={[0, 0, 1]} length={Math.min(2.1, speed / 130)} color="#f4cd4f" label="THRUST" />
@@ -64,6 +74,7 @@ export function JetLab() {
   const [pitch, setPitch] = useState(2.5)
   const [flaps, setFlaps] = useState(0)
   const [bank, setBank] = useState(0)
+  const [time, setTime] = useState('day')
   const mass = 285_000
   const speed = 70 + thrust * 2.05
   const flapBoost = 0.3 + flaps * 0.025
@@ -74,14 +85,22 @@ export function JetLab() {
   const state = verticalLift > weight * 1.08 ? 'Climbing' : verticalLift < weight * 0.92 ? 'Descending' : 'Holding altitude'
   const altitude = 10670
 
+  useEffect(() => {
+    document.body.dataset.flightTime = time
+    return () => {
+      if (document.body.dataset.flightTime === time) delete document.body.dataset.flightTime
+    }
+  }, [time])
+
   const reset = () => { setThrust(72); setPitch(2.5); setFlaps(0); setBank(0) }
 
   return (
-    <div className="lab-layout lab-layout--cake-box">
+    <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
       <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model">
         <div className="scene-toolbar"><SceneBadge>{state} · FL350</SceneBadge><ResetButton onClick={reset} /></div>
+        <TimeOfDayControl value={time} onChange={setTime} />
         <Canvas camera={{ position: [9.5, 5.5, 9], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <JetScene pitch={pitch} bank={bank} flaps={flaps} speed={speed} liftRatio={liftRatio} />
+          <JetScene pitch={pitch} bank={bank} flaps={flaps} speed={speed} liftRatio={liftRatio} time={time} />
         </Canvas>
         <div className="instrument-cluster">
           <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>

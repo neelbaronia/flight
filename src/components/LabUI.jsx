@@ -1,4 +1,23 @@
-import { Gauge, Lightbulb, RotateCcw } from 'lucide-react'
+import { Gauge, Lightbulb, Moon, RotateCcw, Sun, Sunset } from 'lucide-react'
+
+const TIMES = [
+  { id: 'day', label: 'Daytime', Icon: Sun },
+  { id: 'evening', label: 'Evening', Icon: Sunset },
+  { id: 'night', label: 'Nighttime', Icon: Moon },
+]
+
+export function TimeOfDayControl({ value, onChange }) {
+  return (
+    <div className="time-switch" aria-label="Time of day">
+      {TIMES.map(({ id, label, Icon }) => (
+        <button key={id} type="button" className={value === id ? 'is-active' : ''}
+          onClick={() => onChange(id)} title={label} aria-label={label} aria-pressed={value === id}>
+          <Icon size={16} aria-hidden="true" />
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function Slider({ label, value, min, max, step = 1, unit = '', onChange, accent = '#e65a45' }) {
   const progress = ((value - min) / (max - min)) * 100

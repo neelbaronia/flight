@@ -71,6 +71,8 @@
     }
     .selection i { width: 9px; height: 9px; border: 1px solid #98697f; border-radius: 50%; background: #fffaf1; }
     .selection.has-choice i { background: var(--coral); box-shadow: 0 0 0 3px #f7c8c0; }
+    .selection-stack { display: grid; gap: 5px; justify-items: end; }
+    .selection-stack .selection { font-size: .57rem; }
 
     .intro {
       display: grid;
@@ -203,6 +205,35 @@
     .direction-c .visual { background: #b7dce0; }
     .direction-d .visual { background: #f4eadc; }
 
+    .model-intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr);
+      gap: 50px;
+      align-items: end;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 58px 30px 32px;
+      border-top: 1px solid var(--line);
+    }
+    .model-intro h2 { max-width: 760px; margin-top: 10px; font-size: 2.3rem; }
+    .model-intro p { max-width: 520px; margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.7; }
+    .model-grid { padding-bottom: 84px; }
+    .model-grid .visual { background: #8dcedc; }
+    .model-grid .concept-description { min-height: 84px; }
+    .model-priority {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      border: 1px solid #d9cabb;
+      background: #f8eee2;
+      color: #637170;
+      font-size: .65rem;
+      line-height: 1.45;
+    }
+    .model-priority b { color: var(--coral); font: 500 .57rem "DM Mono", monospace; text-transform: uppercase; }
+
     .footer-note {
       display: flex;
       justify-content: space-between;
@@ -218,6 +249,7 @@
     @media (max-width: 900px) {
       .concept-grid { grid-template-columns: 1fr; max-width: 700px; }
       .intro { grid-template-columns: 1fr; gap: 18px; max-width: 700px; }
+      .model-intro { grid-template-columns: 1fr; gap: 18px; max-width: 700px; }
       .spectrum { max-width: 700px; }
       .concept-description { min-height: 0; }
     }
@@ -226,7 +258,10 @@
       .topbar { padding: 9px 15px; }
       .brand-copy small { display: none; }
       .selection { max-width: 145px; justify-content: flex-end; text-align: right; font-size: .56rem; }
+      .selection-stack .selection:first-child { display: none; }
       .intro { padding: 34px 17px 25px; }
+      .model-intro { padding: 42px 17px 25px; }
+      .model-intro h2 { font-size: 1.9rem; }
       h1 { font-size: 2rem; }
       .spectrum { padding: 0 17px; }
       .concept-grid { gap: 18px; padding: 0 17px 48px; }
@@ -249,7 +284,10 @@
       <span class="brand-mark">A</span>
       <span class="brand-copy"><strong>FLIGHT ART STUDIES</strong><small>Four dreamlike directions for the physics lab</small></span>
     </div>
-    <div class="selection" id="selection"><i></i><span>No direction selected</span></div>
+    <div class="selection-stack">
+      <div class="selection" id="selection"><i></i><span>No art direction selected</span></div>
+      <div class="selection" id="model-selection"><i></i><span>No Flyer model selected</span></div>
+    </div>
   </header>
 
   <main>
@@ -263,7 +301,7 @@
 
     <div class="spectrum" aria-label="Art direction spectrum"><span>More instructional</span><div></div><span>More dreamlike</span></div>
 
-    <section class="concept-grid" aria-label="Four art direction concepts">
+    <section class="concept-grid art-grid" aria-label="Four art direction concepts">
       <article class="concept direction-a" data-direction="Cake-Box Daylight">
         <div class="visual">
           <canvas class="concept-canvas" data-scene="daylight" aria-label="A sunlit pastel wing over a painted landscape"></canvas>
@@ -336,6 +374,73 @@
         </div>
       </article>
     </section>
+
+    <section class="model-intro" id="flyer-studies">
+      <div><span class="eyebrow">1903 Flyer / model redesign</span><h2>How should the aircraft reveal what it is doing?</h2></div>
+      <p>All four studies replace the slab-like wings with cambered fabric surfaces, visible ribs, a clear forward axis, and ground motion. The choice is about which teaching signal should dominate.</p>
+    </section>
+
+    <section class="concept-grid model-grid" aria-label="Four Wright Flyer model concepts">
+      <article class="concept model-concept" data-direction="Fabric and Rib Reconstruction">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="flyer-fabric" aria-label="A Wright Flyer with translucent cambered fabric and visible ribs"></canvas>
+          <span class="visual-badge">Cambered cloth + ribs</span>
+          <span class="visual-equation">Motion → / relative air ←</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Model 01</span><h2>Fabric &amp; Rib Reconstruction</h2></div><span class="intensity">Realism<br />4 / 5</span></div>
+          <p class="concept-description">Thin translucent fabric stretches over individually curved ribs, making the airfoil shape readable from every angle. Wires and struts become fine lines instead of heavy blocks, while the pilot and twin propellers remain tactile and painted.</p>
+          <div class="trait-row"><span>Visible camber</span><span>Translucent cloth</span><span>Fine rigging</span><span>Historical</span></div>
+          <div class="model-priority"><b>Emphasis</b><span>Best overall replacement for the current block model.</span></div>
+          <div class="choice-row"><span class="best-for">Best for: recognizing the real Flyer</span><button class="choose" type="button">Choose model 01</button></div>
+        </div>
+      </article>
+
+      <article class="concept model-concept" data-direction="Wind-Tunnel Cutaway">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="flyer-cutaway" aria-label="A transparent Wright Flyer wing with airflow and pressure visible"></canvas>
+          <span class="visual-badge">Aerodynamic cutaway</span>
+          <span class="visual-equation">Pressure skin + curved wake</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Model 02</span><h2>Wind-Tunnel Cutaway</h2></div><span class="intensity">Teaching<br />5 / 5</span></div>
+          <p class="concept-description">The fabric can fade away to expose repeated airfoil ribs. Broad airflow ribbons bend around the real curvature, pressure points sit on the cloth, and drag separates into lift-induced and structural contributions.</p>
+          <div class="trait-row"><span>Ghost skin</span><span>Airflow ribbons</span><span>Pressure map</span><span>Cross-sections</span></div>
+          <div class="model-priority"><b>Emphasis</b><span>Strongest explanation of how the biplane wings generate force.</span></div>
+          <div class="choice-row"><span class="best-for">Best for: lift and drag lessons</span><button class="choose" type="button">Choose model 02</button></div>
+        </div>
+      </article>
+
+      <article class="concept model-concept" data-direction="Painted Kinetic Diorama">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="flyer-diorama" aria-label="A Wright Flyer over a fast moving painted landscape"></canvas>
+          <span class="visual-badge">Ground-relative motion</span>
+          <span class="visual-equation">Forward → / terrain streams back</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Model 03</span><h2>Painted Kinetic Diorama</h2></div><span class="intensity">Motion<br />5 / 5</span></div>
+          <p class="concept-description">The Flyer stays near-camera while dunes, fence posts, shadows, and field tiles stream backward at different speeds. Propwash moves independently behind the twin propellers, making aircraft motion impossible to confuse with airflow.</p>
+          <div class="trait-row"><span>Parallax terrain</span><span>Speed shadows</span><span>Propwash</span><span>Most dreamlike</span></div>
+          <div class="model-priority"><b>Emphasis</b><span>Strongest sense of forward travel and changing speed.</span></div>
+          <div class="choice-row"><span class="best-for">Best for: motion and immersion</span><button class="choose" type="button">Choose model 03</button></div>
+        </div>
+      </article>
+
+      <article class="concept model-concept" data-direction="Ghosted Control Surfaces">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="flyer-controls" aria-label="A Wright Flyer with highlighted moving control surfaces"></canvas>
+          <span class="visual-badge">Neutral + deflected states</span>
+          <span class="visual-equation">Pitch / roll / yaw</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Model 04</span><h2>Ghosted Control Surfaces</h2></div><span class="intensity">Control<br />5 / 5</span></div>
+          <p class="concept-description">A faint neutral aircraft remains behind the active model while the front elevator, warped tips, and rear rudder move in saturated color. Curved motion arcs show the resulting pitch, roll, or yaw without filling the scene with labels.</p>
+          <div class="trait-row"><span>Before / after</span><span>Motion arcs</span><span>Linked controls</span><span>Low text</span></div>
+          <div class="model-priority"><b>Emphasis</b><span>Strongest explanation of the Wrights' control breakthrough.</span></div>
+          <div class="choice-row"><span class="best-for">Best for: steering interactions</span><button class="choose" type="button">Choose model 04</button></div>
+        </div>
+      </article>
+    </section>
   </main>
 
   <footer class="footer-note"><span><b>Selection is saved in this browser.</b> Reopen this file and the chosen direction will remain marked.</span><span>The main flight site has not been changed.</span></footer>
@@ -397,14 +502,106 @@
       arrow(ctx, cx, cy - 35, cx, cy - 122, p.force, 'LIFT')
     }
 
+    function flyerWing(ctx, cx, cy, width, fill, edge, ribs, ghost = false) {
+      ctx.save()
+      ctx.globalAlpha = ghost ? .28 : .94
+      ctx.fillStyle = fill; ctx.strokeStyle = edge; ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.moveTo(cx - width / 2, cy + 2)
+      ctx.bezierCurveTo(cx - width * .28, cy - 22, cx + width * .28, cy - 20, cx + width / 2, cy - 1)
+      ctx.bezierCurveTo(cx + width * .28, cy + 13, cx - width * .28, cy + 15, cx - width / 2, cy + 2)
+      ctx.closePath(); ctx.fill(); ctx.stroke()
+      if (ribs) {
+        ctx.strokeStyle = ghost ? 'rgba(135,74,56,.35)' : 'rgba(145,74,54,.65)'; ctx.lineWidth = 1
+        for (let i=1; i<12; i++) {
+          const x = cx - width/2 + (i/12)*width
+          const arc = Math.sin((i/12)*Math.PI)
+          ctx.beginPath(); ctx.moveTo(x, cy - arc*18); ctx.lineTo(x, cy + arc*12); ctx.stroke()
+        }
+      }
+      ctx.restore()
+    }
+
+    function paintFlyerStudy(ctx, w, h, scene, rand) {
+      const variant = scene.replace('flyer-', '')
+      const sky = variant === 'cutaway' ? '#b9dfe1' : '#8dcedc'
+      const ground = variant === 'diorama' ? '#e99e70' : '#efb774'
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h)
+      ctx.fillStyle = ground; ctx.fillRect(0, h*.63, w, h*.37)
+
+      const fieldColors = ['#efc95e', '#dd8d70', '#e7b5bd', '#90b99c']
+      for (let i=0; i<8; i++) {
+        const x = (i/8)*w - w*.08
+        ctx.fillStyle = fieldColors[i % fieldColors.length]
+        ctx.globalAlpha = variant === 'diorama' ? .9 : .55
+        ctx.beginPath(); ctx.moveTo(x, h*.72); ctx.lineTo(x+w*.13,h*.67); ctx.lineTo(x+w*.24,h); ctx.lineTo(x+w*.04,h); ctx.closePath(); ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = 'rgba(110,72,56,.22)'; ctx.lineWidth = 2
+      for (let y=h*.69; y<h; y+=h*.09) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y+h*.04); ctx.stroke() }
+
+      if (variant === 'diorama') {
+        ctx.strokeStyle = '#fff0d5'; ctx.lineWidth = 4
+        for (let i=0;i<12;i++) { const y=h*.68+(i%5)*18; const x=(i*83)%w; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-42-rand()*45,y+8); ctx.stroke() }
+      }
+
+      const cx=w*.52, cy=h*.48, width=w*.55
+      ctx.fillStyle='rgba(111,63,50,.22)'; ctx.beginPath(); ctx.ellipse(cx+w*.04,cy+h*.24,width*.42,20,-.04,0,Math.PI*2); ctx.fill()
+
+      flyerWing(ctx,cx,cy-48,width,'#f3d676','#a65040',true,variant==='cutaway')
+      flyerWing(ctx,cx,cy+48,width,'#f1cf68','#a65040',true,false)
+
+      ctx.strokeStyle='#914f3c'; ctx.lineWidth=4
+      for (const x of [cx-width*.38,cx-width*.16,cx+width*.12,cx+width*.37]) { ctx.beginPath();ctx.moveTo(x,cy-37);ctx.lineTo(x,cy+42);ctx.stroke() }
+      ctx.lineWidth=1.5; ctx.globalAlpha=.7
+      ctx.beginPath();ctx.moveTo(cx-width*.4,cy-40);ctx.lineTo(cx+width*.38,cy+42);ctx.moveTo(cx+width*.38,cy-40);ctx.lineTo(cx-width*.4,cy+42);ctx.stroke();ctx.globalAlpha=1
+
+      flyerWing(ctx,cx-width*.08,cy-96,width*.23,variant==='controls'?'#76569b':'#f3d676','#a65040',true,false)
+      ctx.fillStyle=variant==='controls'?'#e65b4a':'#f1cf68';ctx.strokeStyle='#a65040';ctx.lineWidth=2
+      ctx.fillRect(cx+width*.36,cy-18,12,65);ctx.strokeRect(cx+width*.36,cy-18,12,65)
+
+      for (const px of [cx-width*.19,cx+width*.16]) {
+        ctx.save();ctx.translate(px,cy+8);ctx.strokeStyle=variant==='fabric'?'#84513e':'#e65b4a';ctx.lineWidth=6
+        ctx.beginPath();ctx.moveTo(-20,-25);ctx.lineTo(20,25);ctx.moveTo(20,-25);ctx.lineTo(-20,25);ctx.stroke();ctx.restore()
+      }
+
+      if (variant === 'cutaway') {
+        ctx.strokeStyle='#338fa0';ctx.lineWidth=3
+        for (const offset of [-44,-16,18,47]) { ctx.beginPath();ctx.moveTo(w*.08,cy+offset);ctx.bezierCurveTo(w*.3,cy+offset-22,w*.66,cy+offset-18,w*.94,cy+offset+12);ctx.stroke() }
+        ctx.fillStyle='#27829c';for(let i=0;i<24;i++){ctx.beginPath();ctx.arc(cx-width*.4+i*(width*.8/23),cy-50-Math.sin(i/23*Math.PI)*17,3,0,Math.PI*2);ctx.fill()}
+      }
+
+      if (variant === 'controls') {
+        ctx.globalAlpha=.32;ctx.strokeStyle='#76569b';ctx.lineWidth=3;ctx.strokeRect(cx-width*.2,cy-110,width*.25,28);ctx.globalAlpha=1
+        ctx.fillStyle='#2f8ca0';ctx.fillRect(cx-width*.5,cy-61,width*.18,18);ctx.fillRect(cx+width*.32,cy-61,width*.18,18)
+        arrow(ctx,cx-width*.34,cy-66,cx-width*.34,cy-102,'#2f8ca0','ROLL')
+        arrow(ctx,cx-width*.08,cy-103,cx-width*.08,cy-134,'#76569b','PITCH')
+        arrow(ctx,cx+width*.39,cy+8,cx+width*.47,cy-6,'#e65b4a','YAW')
+      }
+
+      arrow(ctx,w*.62,h*.18,w*.82,h*.18,'#e65b4a','MOTION')
+      arrow(ctx,w*.38,h*.27,w*.18,h*.27,'#2f7f8f','RELATIVE AIR')
+      ctx.fillStyle='#5b4c45';ctx.font='500 10px DM Mono';ctx.fillText('LANDSCAPE STREAMS BACK',w*.06,h*.9)
+
+      for(let i=0;i<110;i++){
+        const x=rand()*w,y=rand()*h;ctx.strokeStyle=rand()>.5?'rgba(255,255,255,.1)':'rgba(74,54,48,.045)';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+5+rand()*8,y);ctx.stroke()
+      }
+    }
+
     function paintScene(canvas) {
       const scene = canvas.dataset.scene
-      const p = palettes[scene]
       const rect = canvas.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr))
       const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr)
       const w = rect.width, h = rect.height, rand = seeded(scene.length * 9701)
+
+      if (scene.startsWith('flyer-')) {
+        paintFlyerStudy(ctx, w, h, scene, rand)
+        return
+      }
+
+      const p = palettes[scene]
 
       ctx.fillStyle = p.sky; ctx.fillRect(0, 0, w, h)
       ctx.fillStyle = p.horizon
@@ -451,24 +648,31 @@
     window.addEventListener('resize', drawAll)
     document.fonts.ready.then(drawAll)
 
-    const selection = document.getElementById('selection')
-    const cards = [...document.querySelectorAll('.concept')]
-    function selectDirection(card) {
-      cards.forEach(item => {
-        const selected = item === card
-        item.classList.toggle('is-selected', selected)
-        item.querySelector('.choose').textContent = selected ? 'Selected' : `Choose direction ${item.querySelector('.number').textContent.slice(-2)}`
-      })
-      const name = card.dataset.direction
-      selection.classList.add('has-choice')
-      selection.querySelector('span').textContent = `Selected: ${name}`
-      localStorage.setItem('flight-art-direction', name)
+    function setupSelection({ selector, outputId, storageKey, buttonLabel, emptyLabel }) {
+      const selection = document.getElementById(outputId)
+      const cards = [...document.querySelectorAll(selector)]
+      function selectDirection(card) {
+        cards.forEach(item => {
+          const selected = item === card
+          const number = item.querySelector('.number').textContent.match(/\d+/)?.[0] || ''
+          item.classList.toggle('is-selected', selected)
+          item.querySelector('.choose').textContent = selected ? 'Selected' : `${buttonLabel} ${number}`
+        })
+        const name = card.dataset.direction
+        selection.classList.add('has-choice')
+        selection.querySelector('span').textContent = `Selected: ${name}`
+        localStorage.setItem(storageKey, name)
+      }
+
+      cards.forEach(card => card.querySelector('.choose').addEventListener('click', () => selectDirection(card)))
+      const saved = localStorage.getItem(storageKey)
+      const savedCard = cards.find(card => card.dataset.direction === saved)
+      if (savedCard) selectDirection(savedCard)
+      else selection.querySelector('span').textContent = emptyLabel
     }
 
-    cards.forEach(card => card.querySelector('.choose').addEventListener('click', () => selectDirection(card)))
-    const saved = localStorage.getItem('flight-art-direction')
-    const savedCard = cards.find(card => card.dataset.direction === saved)
-    if (savedCard) selectDirection(savedCard)
+    setupSelection({ selector: '.art-grid .concept', outputId: 'selection', storageKey: 'flight-art-direction', buttonLabel: 'Choose direction', emptyLabel: 'No art direction selected' })
+    setupSelection({ selector: '.model-grid .concept', outputId: 'model-selection', storageKey: 'flight-flyer-direction', buttonLabel: 'Choose model', emptyLabel: 'No Flyer model selected' })
   </script>
 </body>
 </html>
