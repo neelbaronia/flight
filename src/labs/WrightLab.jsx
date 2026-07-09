@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider, TimeOfDayControl } from '../components/LabUI.jsx'
+import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
 
 const MODE_SHORT = { wings: 'WING FORCES', propulsion: 'PROPULSION', controls: 'CONTROLS' }
@@ -480,7 +481,7 @@ export function WrightLab() {
   const [warp, setWarp] = useState(0)
   const [yaw, setYaw] = useState(0)
   const [mode, setMode] = useState('wings')
-  const [time, setTime] = useState('day')
+  const [time, setTime] = useTimeOfDay()
   const [resetSignal, setResetSignal] = useState(0)
   const wingSection = useRef()
   const propulsionSection = useRef()

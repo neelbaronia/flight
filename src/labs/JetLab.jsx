@@ -3,6 +3,7 @@ import { OrbitControls, Stars } from '@react-three/drei'
 import { useEffect, useRef, useState } from 'react'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider, TimeOfDayControl } from '../components/LabUI.jsx'
+import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
 
 const JET_ATMOSPHERE = {
@@ -74,7 +75,7 @@ export function JetLab() {
   const [pitch, setPitch] = useState(2.5)
   const [flaps, setFlaps] = useState(0)
   const [bank, setBank] = useState(0)
-  const [time, setTime] = useState('day')
+  const [time, setTime] = useTimeOfDay()
   const mass = 285_000
   const speed = 70 + thrust * 2.05
   const flapBoost = 0.3 + flaps * 0.025
