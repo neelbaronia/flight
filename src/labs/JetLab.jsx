@@ -2,7 +2,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars } from '@react-three/drei'
 import { useEffect, useRef, useState } from 'react'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
-import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider, TimeOfDayControl } from '../components/LabUI.jsx'
+import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
 
@@ -75,7 +75,7 @@ export function JetLab() {
   const [pitch, setPitch] = useState(2.5)
   const [flaps, setFlaps] = useState(0)
   const [bank, setBank] = useState(0)
-  const [time, setTime] = useTimeOfDay()
+  const time = useTimeOfDay()
   const mass = 285_000
   const speed = 70 + thrust * 2.05
   const flapBoost = 0.3 + flaps * 0.025
@@ -99,7 +99,6 @@ export function JetLab() {
     <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
       <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model">
         <div className="scene-toolbar"><SceneBadge>{state} · FL350</SceneBadge><ResetButton onClick={reset} /></div>
-        <TimeOfDayControl value={time} onChange={setTime} />
         <Canvas camera={{ position: [9.5, 5.5, 9], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
           <JetScene pitch={pitch} bank={bank} flaps={flaps} speed={speed} liftRatio={liftRatio} time={time} />
         </Canvas>

@@ -3,7 +3,7 @@ import { Billboard, Line, OrbitControls, Stars, Text } from '@react-three/drei'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
-import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider, TimeOfDayControl } from '../components/LabUI.jsx'
+import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
 
@@ -481,7 +481,7 @@ export function WrightLab() {
   const [warp, setWarp] = useState(0)
   const [yaw, setYaw] = useState(0)
   const [mode, setMode] = useState('wings')
-  const [time, setTime] = useTimeOfDay()
+  const time = useTimeOfDay()
   const [resetSignal, setResetSignal] = useState(0)
   const wingSection = useRef()
   const propulsionSection = useRef()
@@ -534,7 +534,6 @@ export function WrightLab() {
           <button type="button" className={mode === 'propulsion' ? 'is-active' : ''} onClick={() => setMode('propulsion')}>Propellers</button>
           <button type="button" className={mode === 'controls' ? 'is-active' : ''} onClick={() => setMode('controls')}>Pilot controls</button>
         </div>
-        <TimeOfDayControl value={time} onChange={setTime} />
         <div className="motion-reference" aria-label="Motion reference frame">
           <span><small>Flyer motion</small><b>{speed.toFixed(1)} m/s →</b></span>
           <span><small>Ground &amp; air</small><b>← {speed.toFixed(1)} m/s</b></span>

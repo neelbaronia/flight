@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export function getLocalTimeOfDay(date = new Date()) {
   const hour = date.getHours()
@@ -9,12 +9,9 @@ export function getLocalTimeOfDay(date = new Date()) {
 
 export function useTimeOfDay() {
   const [value, setValue] = useState(getLocalTimeOfDay)
-  const manuallySelected = useRef(false)
 
   useEffect(() => {
-    const syncToClock = () => {
-      if (!manuallySelected.current) setValue(getLocalTimeOfDay())
-    }
+    const syncToClock = () => setValue(getLocalTimeOfDay())
     const interval = window.setInterval(syncToClock, 60_000)
     window.addEventListener('focus', syncToClock)
     return () => {
@@ -23,10 +20,5 @@ export function useTimeOfDay() {
     }
   }, [])
 
-  const select = useCallback((nextValue) => {
-    manuallySelected.current = true
-    setValue(nextValue)
-  }, [])
-
-  return [value, select]
+  return value
 }

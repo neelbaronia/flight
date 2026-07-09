@@ -352,39 +352,6 @@ body[data-flight-time='night'] .lab-tabs button.is-active { color: #ff9187; }
 
 .scene-mode button.is-active { background: #315964; color: white; }
 
-.time-switch {
-  position: absolute;
-  z-index: 5;
-  top: 67px;
-  right: 18px;
-  display: grid;
-  grid-template-columns: repeat(3, 32px);
-  padding: 3px;
-  border: 1px solid rgba(52, 70, 72, .2);
-  border-radius: 4px;
-  background: rgba(255, 250, 239, .92);
-  box-shadow: 3px 4px 0 rgba(74, 89, 89, .14);
-}
-
-.time-switch button {
-  width: 32px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
-  color: #67787c;
-  background: transparent;
-  cursor: pointer;
-}
-
-.time-switch button:nth-child(1).is-active { color: #744b20; background: #f2c94d; }
-.time-switch button:nth-child(2).is-active { color: white; background: #9c77ae; }
-.time-switch button:nth-child(3).is-active { color: #eaf2ff; background: #294e79; }
-.lab-layout--time-night .time-switch { border-color: #607493; background: rgba(25, 42, 67, .94); }
-.time-switch button:hover { color: #294e79; background: rgba(119, 157, 174, .18); }
-
 .motion-reference {
   position: absolute;
   z-index: 3;
@@ -898,8 +865,6 @@ input[type='range']::-moz-range-thumb {
   .stall-banner { bottom: 112px; }
   .scene-mode { top: 57px; }
   .motion-reference { top: 101px; left: 12px; }
-  .demo-pane--wright .time-switch { top: 101px; right: 12px; }
-  .demo-pane--jet .time-switch { top: 57px; right: 12px; }
 }
 
 @media (max-width: 440px) {
@@ -909,7 +874,6 @@ input[type='range']::-moz-range-thumb {
   .scene-mode button { min-width: 0; font-size: .53rem; }
   .motion-reference { right: 12px; grid-template-columns: 1fr 1fr; }
   .motion-reference span { padding: 6px 8px; }
-  .demo-pane--wright .time-switch { top: 149px; }
   .scene-badge { max-width: calc(100% - 50px); font-size: .58rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .force-legend { bottom: 12px; left: 12px; gap: 10px; }
   .stall-banner { width: calc(100% - 24px); bottom: 112px; font-size: .62rem; text-align: center; }
