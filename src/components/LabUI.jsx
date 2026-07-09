@@ -1,6 +1,6 @@
 import { Gauge, Lightbulb, RotateCcw } from 'lucide-react'
 
-export function Slider({ label, value, min, max, step = 1, unit = '', onChange, accent = '#e65a45' }) {
+export function Slider({ label, value, min, max, step = 1, unit = '', onChange, accent = '#e65a45', onInteractionStart, onInteractionEnd }) {
   const progress = ((value - min) / (max - min)) * 100
   return (
     <label className="slider-control">
@@ -15,6 +15,11 @@ export function Slider({ label, value, min, max, step = 1, unit = '', onChange, 
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
+        onPointerDown={onInteractionStart}
+        onPointerUp={onInteractionEnd}
+        onKeyDown={onInteractionStart}
+        onKeyUp={onInteractionEnd}
+        onBlur={onInteractionEnd}
         style={{ '--range-progress': `${progress}%`, '--range-accent': accent }}
       />
     </label>
