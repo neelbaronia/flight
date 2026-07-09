@@ -4,12 +4,85 @@ import { useEffect, useRef, useState } from 'react'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
-import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
+import { clamp, flightForces, formatForce, GRAVITY, liftCoefficient } from '../physics.js'
+
+const JET_MASS = 285_000
+const JET_AREA = 511
+const JET_CRUISE_DENSITY = 0.38
+const JET_INITIAL_ALTITUDE = 10_670
+const JET_MAX_THRUST = 250_000
+const JET_SIMULATION_RATE = 10
+const JET_INITIAL_SPEED = Math.sqrt(
+  (2 * JET_MASS * GRAVITY) / (JET_CRUISE_DENSITY * JET_AREA * liftCoefficient(2.5, 0.3)),
+)
+const INITIAL_JET_TELEMETRY = {
+  speed: JET_INITIAL_SPEED,
+  altitude: JET_INITIAL_ALTITUDE,
+  verticalSpeed: 0,
+  angleOfAttack: 2.5,
+  verticalAcceleration: 0,
+  netVerticalForce: 0,
+  flightPathAngle: 0,
+}
 
 const JET_ATMOSPHERE = {
   day: { sky: '#88cddd', fog: '#88cddd', cloud: '#fff9ed' },
   evening: { sky: '#958cc4', fog: '#bc9fbe', cloud: '#eed4e8' },
   night: { sky: '#122848', fog: '#233e63', cloud: '#7184a5' },
+}
+
+function densityAtAltitude(altitude) {
+  return clamp(JET_CRUISE_DENSITY * Math.exp((JET_INITIAL_ALTITUDE - altitude) / 8500), 0.24, 0.65)
+}
+
+function useJetSimulation(thrust, pitch, flaps, bank, resetSignal) {
+  const controls = useRef({ thrust, pitch, flaps, bank })
+  const [telemetry, setTelemetry] = useState(INITIAL_JET_TELEMETRY)
+
+  useEffect(() => {
+    controls.current = { thrust, pitch, flaps, bank }
+  }, [thrust, pitch, flaps, bank])
+
+  useEffect(() => {
+    const state = { speed: JET_INITIAL_SPEED, altitude: JET_INITIAL_ALTITUDE, flightPathAngle: 0 }
+    let frame
+    let lastTime = performance.now()
+    let lastPublish = 0
+
+    const tick = (now) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.12) * JET_SIMULATION_RATE
+      lastTime = now
+      const current = controls.current
+      const density = densityAtAltitude(state.altitude)
+      const flapBoost = 0.3 + current.flaps * 0.025
+      const forces = flightForces({ speed: state.speed, area: JET_AREA, angle: current.pitch, dragCoefficient: 0.022, flapBoost, density })
+      const engineThrust = (current.thrust / 100) * JET_MAX_THRUST
+      const gravityAlongFlightPath = -GRAVITY * Math.sin(state.flightPathAngle)
+      const horizontalAcceleration = (engineThrust - forces.drag) / JET_MASS + gravityAlongFlightPath
+      state.speed = clamp(state.speed + horizontalAcceleration * dt, 65, 300)
+
+      const verticalLift = forces.lift * Math.cos((current.bank * Math.PI) / 180)
+      const netVerticalForce = verticalLift - JET_MASS * GRAVITY
+      const verticalAcceleration = netVerticalForce / JET_MASS
+      const normalAcceleration = verticalLift / JET_MASS - GRAVITY * Math.cos(state.flightPathAngle)
+      const flightPathRate = normalAcceleration / Math.max(state.speed, 65)
+      state.flightPathAngle = clamp(state.flightPathAngle + flightPathRate * dt, -0.3, 0.2)
+      const verticalSpeed = state.speed * Math.sin(state.flightPathAngle)
+      state.altitude = clamp(state.altitude + verticalSpeed * dt, 0, 15_000)
+      if ((state.altitude === 0 && verticalSpeed < 0) || (state.altitude === 15_000 && verticalSpeed > 0)) state.flightPathAngle = 0
+
+      if (now - lastPublish > 55) {
+        setTelemetry({ ...state, verticalSpeed, angleOfAttack: current.pitch, verticalAcceleration, netVerticalForce })
+        lastPublish = now
+      }
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [resetSignal])
+
+  return telemetry
 }
 
 function Engine({ position }) {
@@ -45,11 +118,15 @@ function JumboModel({ pitch, bank, flaps, time }) {
   )
 }
 
-function JetScene({ pitch, bank, flaps, speed, liftRatio, time }) {
+function JetScene({ pitch, bank, flaps, liftRatio, time, altitude, verticalSpeed, engineThrust, drag }) {
   const jet = useRef()
   const atmosphere = JET_ATMOSPHERE[time]
   useFrame((state) => {
-    if (jet.current) jet.current.position.y = Math.sin(state.clock.elapsedTime * 0.7) * 0.035
+    if (!jet.current) return
+    const altitudeOffset = clamp((altitude - JET_INITIAL_ALTITUDE) / 350, -2.25, 2.25)
+    const targetY = altitudeOffset + Math.sin(state.clock.elapsedTime * 0.7) * 0.025
+    jet.current.position.y += (targetY - jet.current.position.y) * 0.08
+    jet.current.rotation.x = clamp(verticalSpeed / 180, -0.22, 0.16)
   })
   return (
     <>
@@ -64,7 +141,8 @@ function JetScene({ pitch, bank, flaps, speed, liftRatio, time }) {
       <group ref={jet}><JumboModel pitch={pitch} bank={bank} flaps={flaps} time={time} /></group>
       <ForceArrow from={[0, 0.7, 0]} direction={[0, 1, 0]} length={Math.min(2.5, 0.7 + liftRatio * 0.8)} color="#e6543f" label="LIFT" />
       <ForceArrow from={[0, -0.6, 0]} direction={[0, -1, 0]} length={1.5} color="#2d6171" label="WEIGHT" />
-      <ForceArrow from={[0, -0.15, 2.4]} direction={[0, 0, 1]} length={Math.min(2.1, speed / 130)} color="#f4cd4f" label="THRUST" />
+      <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.25 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`THRUST · ${formatForce(engineThrust)}`} />
+      <ForceArrow from={[1.4, 0.1, 0.5]} direction={[0, 0, 1]} length={0.25 + Math.min(1.7, drag / 140_000)} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />
       <OrbitControls enablePan={false} minDistance={8} maxDistance={15} minPolarAngle={0.7} maxPolarAngle={2.05} />
     </>
   )
@@ -75,16 +153,22 @@ export function JetLab() {
   const [pitch, setPitch] = useState(2.5)
   const [flaps, setFlaps] = useState(0)
   const [bank, setBank] = useState(0)
+  const [resetSignal, setResetSignal] = useState(0)
   const time = useTimeOfDay()
-  const mass = 285_000
-  const speed = 70 + thrust * 2.05
+  const telemetry = useJetSimulation(thrust, pitch, flaps, bank, resetSignal)
+  const speed = telemetry.speed
   const flapBoost = 0.3 + flaps * 0.025
-  const forces = flightForces({ speed, area: 511, angle: pitch, dragCoefficient: 0.022, flapBoost, density: 0.38 })
-  const weight = mass * GRAVITY
+  const density = densityAtAltitude(telemetry.altitude)
+  const forces = flightForces({ speed, area: JET_AREA, angle: telemetry.angleOfAttack, dragCoefficient: 0.022, flapBoost, density })
+  const weight = JET_MASS * GRAVITY
   const liftRatio = clamp(forces.lift / weight, 0, 2.4)
   const verticalLift = forces.lift * Math.cos((bank * Math.PI) / 180)
-  const state = verticalLift > weight * 1.08 ? 'Climbing' : verticalLift < weight * 0.92 ? 'Descending' : 'Holding altitude'
-  const altitude = 10670
+  const engineThrust = (thrust / 100) * JET_MAX_THRUST
+  const state = telemetry.verticalSpeed > 2 ? 'Climbing'
+    : telemetry.verticalSpeed < -2 ? 'Descending'
+      : telemetry.verticalAcceleration > 0.15 ? 'Lift increasing climb'
+        : telemetry.verticalAcceleration < -0.15 ? 'Gravity increasing descent' : 'Holding altitude'
+  const flightLevel = Math.max(0, Math.round((telemetry.altitude * 3.28084) / 100))
 
   useEffect(() => {
     document.body.dataset.flightTime = time
@@ -93,19 +177,20 @@ export function JetLab() {
     }
   }, [time])
 
-  const reset = () => { setThrust(72); setPitch(2.5); setFlaps(0); setBank(0) }
+  const reset = () => { setThrust(72); setPitch(2.5); setFlaps(0); setBank(0); setResetSignal((signal) => signal + 1) }
 
   return (
     <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
       <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model">
-        <div className="scene-toolbar"><SceneBadge>{state} · FL350</SceneBadge><ResetButton onClick={reset} /></div>
+        <div className="scene-toolbar"><SceneBadge>{state} · FL{flightLevel}</SceneBadge><ResetButton onClick={reset} /></div>
         <Canvas camera={{ position: [9.5, 5.5, 9], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <JetScene pitch={pitch} bank={bank} flaps={flaps} speed={speed} liftRatio={liftRatio} time={time} />
+          <JetScene pitch={pitch} bank={bank} flaps={flaps} liftRatio={liftRatio} time={time}
+            altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} />
         </Canvas>
         <div className="instrument-cluster">
           <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>
           <div className="attitude"><span style={{ transform: `rotate(${-bank}deg) translateY(${pitch * 1.5}px)` }} /><b>{bank > 2 ? 'BANK R' : bank < -2 ? 'BANK L' : 'WINGS LEVEL'}</b></div>
-          <div className="altimeter"><span>35,000</span><small>FEET</small><b>{state.toUpperCase()}</b></div>
+          <div className="altimeter"><span>{Math.round(telemetry.altitude * 3.28084).toLocaleString()}</span><small>FEET</small><b>{state.toUpperCase()}</b></div>
         </div>
       </section>
 
@@ -116,7 +201,7 @@ export function JetLab() {
 
         <div className="control-group">
           <div className="group-title"><span>Flight deck</span><small>Hold altitude while banking</small></div>
-          <Slider label="Engine thrust" value={thrust} min={20} max={100} unit="%" onChange={setThrust} />
+          <Slider label="Engine thrust" value={thrust} min={0} max={100} unit="%" onChange={setThrust} />
           <Slider label="Pitch" value={pitch} min={-2} max={9} step={0.5} unit="°" onChange={setPitch} accent="#6e4c9b" />
           <Slider label="Flaps" value={flaps} min={0} max={30} unit="°" onChange={setFlaps} accent="#27829c" />
           <Slider label="Bank angle" value={bank} min={-35} max={35} unit="°" onChange={setBank} accent="#d38d27" />
@@ -126,8 +211,19 @@ export function JetLab() {
           <Metric label="Lift" value={formatForce(forces.lift)} />
           <Metric label="Weight" value={formatForce(weight)} tone="blue" />
           <Metric label="Drag" value={formatForce(forces.drag)} tone="violet" />
-          <Metric label="Altitude" value={`${(altitude / 1000).toFixed(1)} km`} tone="yellow" />
+          <Metric label="Thrust" value={formatForce(engineThrust)} tone="yellow" />
+          <Metric label="Altitude" value={`${(telemetry.altitude / 1000).toFixed(2)} km`} tone="yellow" />
+          <Metric label="Vertical speed" value={`${telemetry.verticalSpeed >= 0 ? '+' : ''}${telemetry.verticalSpeed.toFixed(1)} m/s`} tone="blue" />
         </div>
+
+        <section className="lesson-section">
+          <h2>Force difference becomes motion</h2>
+          <Equation caption="A close match changes vertical speed slowly. A large mismatch creates a much larger acceleration and the altitude begins changing rapidly."
+            values={`(${formatForce(verticalLift)} − ${formatForce(weight)}) ÷ ${JET_MASS.toLocaleString()} kg = ${telemetry.verticalAcceleration.toFixed(2)} m/s²`}>
+            a<sub>vertical</sub> = (L<sub>vertical</sub> − W) ÷ m
+          </Equation>
+          <Note>At zero thrust the 747 initially glides because its existing airspeed still makes lift. Drag then removes speed, lift falls, and the descent steepens. Lowering thrust does not switch gravity on; it removes the energy that was balancing drag.</Note>
+        </section>
 
         <section className="lesson-section">
           <h2>A bank spends some lift</h2>
