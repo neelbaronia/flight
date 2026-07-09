@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f9f0e6" />
+  <title>Flight Lab - Art Direction Studies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: #29474d;
+      background: #f9f0e6;
+      font-synthesis: none;
+      --ink: #29474d;
+      --muted: #6f7c79;
+      --paper: #fffaf1;
+      --line: #dfd1c3;
+      --coral: #ed5b46;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { min-width: 320px; margin: 0; }
+    button { font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #28788c; outline-offset: 3px; }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 10px 30px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 250, 241, .96);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border: 2px solid #9e4438;
+      border-radius: 50%;
+      background: #f3c847;
+      box-shadow: 3px 3px 0 #efa6b8;
+      color: #9e4438;
+      font-size: 1.15rem;
+      font-weight: 800;
+      transform: rotate(-8deg);
+    }
+    .brand-copy { display: grid; gap: 1px; }
+    .brand-copy strong { font-size: .78rem; letter-spacing: .08em; }
+    .brand-copy small { color: var(--muted); font-size: .68rem; }
+
+    .selection {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: #78566a;
+      font: 500 .68rem "DM Mono", monospace;
+      text-transform: uppercase;
+    }
+    .selection i { width: 9px; height: 9px; border: 1px solid #98697f; border-radius: 50%; background: #fffaf1; }
+    .selection.has-choice i { background: var(--coral); box-shadow: 0 0 0 3px #f7c8c0; }
+
+    .intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr);
+      gap: 50px;
+      align-items: end;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 48px 30px 34px;
+    }
+    .eyebrow { color: var(--coral); font: 500 .68rem "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { max-width: 780px; margin: 11px 0 0; font: 800 2.65rem/1.02 "Fraunces", serif; letter-spacing: 0; }
+    .intro p { max-width: 520px; margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.7; }
+
+    .spectrum {
+      max-width: 1320px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 14px;
+      margin: 0 auto 25px;
+      padding: 0 30px;
+      color: #7e7972;
+      font: 500 .59rem "DM Mono", monospace;
+      text-transform: uppercase;
+    }
+    .spectrum div { height: 6px; background: linear-gradient(90deg, #6fbcd0, #f1c646 34%, #ed715e 66%, #765598); }
+
+    .concept-grid {
+      max-width: 1320px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 26px;
+      margin: 0 auto;
+      padding: 0 30px 70px;
+    }
+
+    .concept {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--paper);
+      box-shadow: 8px 9px 0 rgba(112, 74, 58, .09);
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .concept:hover { transform: translateY(-3px); box-shadow: 10px 13px 0 rgba(112, 74, 58, .11); }
+    .concept.is-selected { border-color: var(--coral); box-shadow: 0 0 0 3px #f4b5aa, 10px 13px 0 rgba(112, 74, 58, .11); }
+
+    .visual {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-bottom: 1px solid rgba(79, 64, 58, .18);
+      background: #8acbdc;
+    }
+    .visual canvas { width: 100%; height: 100%; display: block; transition: transform 1.2s cubic-bezier(.2,.7,.2,1); }
+    .concept:hover .visual canvas { transform: scale(1.025); }
+    .visual-badge {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      padding: 7px 9px;
+      border: 1px solid rgba(53, 62, 62, .22);
+      border-radius: 3px;
+      background: rgba(255, 250, 239, .9);
+      box-shadow: 3px 4px 0 rgba(62, 66, 64, .14);
+      color: #315964;
+      font: 500 .58rem "DM Mono", monospace;
+      text-transform: uppercase;
+    }
+    .visual-equation {
+      position: absolute;
+      right: 15px;
+      bottom: 15px;
+      padding: 7px 10px;
+      border-left: 4px solid var(--coral);
+      background: rgba(255, 249, 238, .9);
+      color: #4f4b60;
+      font: 500 .64rem "DM Mono", monospace;
+    }
+
+    .concept-body { padding: 23px 24px 24px; }
+    .concept-heading { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start; }
+    .number { display: block; margin-bottom: 5px; color: var(--coral); font: 500 .62rem "DM Mono", monospace; }
+    h2 { margin: 0; font: 800 1.55rem/1.08 "Fraunces", serif; letter-spacing: 0; }
+    .intensity { padding-top: 5px; color: #826d76; font: 500 .56rem "DM Mono", monospace; text-align: right; text-transform: uppercase; }
+    .concept-description { min-height: 65px; margin: 13px 0 17px; color: var(--muted); font-size: .78rem; line-height: 1.65; }
+
+    .trait-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+    .trait-row span { padding: 5px 7px; border: 1px solid #ddd0c2; border-radius: 3px; color: #5f6e6d; font: 500 .55rem "DM Mono", monospace; text-transform: uppercase; }
+
+    .spec-row {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(180px, 1.2fr);
+      gap: 18px;
+      align-items: end;
+      padding-top: 17px;
+      border-top: 1px solid var(--line);
+    }
+    .palette { display: grid; grid-template-columns: repeat(5, 1fr); height: 25px; border: 1px solid rgba(80,60,50,.16); }
+    .palette i { display: block; }
+    .ui-sample { display: grid; gap: 8px; }
+    .ui-sample label { display: flex; justify-content: space-between; color: #536867; font-size: .61rem; font-weight: 700; }
+    .ui-sample label b { font: 500 .59rem "DM Mono", monospace; }
+    .track { position: relative; height: 5px; background: #e3d9cd; }
+    .track::before { content: ""; display: block; width: var(--fill); height: 100%; background: var(--accent); }
+    .track::after { content: ""; position: absolute; top: 50%; left: var(--fill); width: 13px; height: 13px; border: 2px solid #fffaf1; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px #8a756c; transform: translate(-50%, -50%); }
+
+    .choice-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 21px; }
+    .best-for { color: #8a8078; font-size: .64rem; line-height: 1.4; }
+    .choose {
+      flex: none;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid #9e4438;
+      border-radius: 4px;
+      background: #f5c84a;
+      box-shadow: 3px 3px 0 #efa6b8;
+      color: #713a31;
+      cursor: pointer;
+      font-size: .67rem;
+      font-weight: 700;
+    }
+    .choose:hover { transform: translateY(-1px); }
+    .is-selected .choose { background: var(--coral); color: white; box-shadow: 3px 3px 0 #f2b84c; }
+
+    .direction-a .visual { background: #8dcedc; }
+    .direction-b .visual { background: #9686b2; }
+    .direction-c .visual { background: #b7dce0; }
+    .direction-d .visual { background: #f4eadc; }
+
+    .footer-note {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      padding: 22px 30px;
+      border-top: 1px solid var(--line);
+      background: #fffaf1;
+      color: #77736d;
+      font-size: .68rem;
+    }
+    .footer-note b { color: var(--ink); }
+
+    @media (max-width: 900px) {
+      .concept-grid { grid-template-columns: 1fr; max-width: 700px; }
+      .intro { grid-template-columns: 1fr; gap: 18px; max-width: 700px; }
+      .spectrum { max-width: 700px; }
+      .concept-description { min-height: 0; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar { padding: 9px 15px; }
+      .brand-copy small { display: none; }
+      .selection { max-width: 145px; justify-content: flex-end; text-align: right; font-size: .56rem; }
+      .intro { padding: 34px 17px 25px; }
+      h1 { font-size: 2rem; }
+      .spectrum { padding: 0 17px; }
+      .concept-grid { gap: 18px; padding: 0 17px 48px; }
+      .concept-body { padding: 19px 17px 20px; }
+      .spec-row { grid-template-columns: 1fr; }
+      .choice-row { align-items: end; }
+      .footer-note { display: block; padding: 20px 17px; }
+      .footer-note span:last-child { display: block; margin-top: 6px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">A</span>
+      <span class="brand-copy"><strong>FLIGHT ART STUDIES</strong><small>Four dreamlike directions for the physics lab</small></span>
+    </div>
+    <div class="selection" id="selection"><i></i><span>No direction selected</span></div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div>
+        <span class="eyebrow">Art direction study / July 2026</span>
+        <h1>How dreamy should the sky become?</h1>
+      </div>
+      <p>Each option keeps the flight simulator readable, then changes the world around it: painted edges, confectionery color, long shadows, surreal scale, and the balance between wonder and instruction.</p>
+    </section>
+
+    <div class="spectrum" aria-label="Art direction spectrum"><span>More instructional</span><div></div><span>More dreamlike</span></div>
+
+    <section class="concept-grid" aria-label="Four art direction concepts">
+      <article class="concept direction-a" data-direction="Cake-Box Daylight">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="daylight" aria-label="A sunlit pastel wing over a painted landscape"></canvas>
+          <span class="visual-badge">Airflow attached</span>
+          <span class="visual-equation">L = 1/2 rho v^2 S C<sub>L</sub></span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Direction 01</span><h2>Cake-Box Daylight</h2></div><span class="intensity">Dream level<br />2 / 5</span></div>
+          <p class="concept-description">The clearest evolution of the current site. Powder-blue skies, lemon aircraft, coral contours, and thick lavender cast shadows make every object feel painted and edible without weakening the physics.</p>
+          <div class="trait-row"><span>Sun-washed</span><span>Chalky edges</span><span>Long shadows</span><span>Most legible</span></div>
+          <div class="spec-row">
+            <div class="palette"><i style="background:#86cddd"></i><i style="background:#f2cf58"></i><i style="background:#ed644d"></i><i style="background:#eda8ba"></i><i style="background:#fff8e9"></i></div>
+            <div class="ui-sample"><label><span>Airspeed</span><b>28 m/s</b></label><div class="track" style="--fill:62%;--accent:#ed5b46"></div></div>
+          </div>
+          <div class="choice-row"><span class="best-for">Best for: a safe, cohesive visual upgrade</span><button class="choose" type="button">Choose direction 01</button></div>
+        </div>
+      </article>
+
+      <article class="concept direction-b" data-direction="Lavender Afterimage">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="twilight" aria-label="A floating coral wing in a lavender twilight sky"></canvas>
+          <span class="visual-badge">Quiet-air study</span>
+          <span class="visual-equation">Delta p x S = lift</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Direction 02</span><h2>Lavender Afterimage</h2></div><span class="intensity">Dream level<br />4 / 5</span></div>
+          <p class="concept-description">A duskier, more cinematic lab. Coral aircraft float over mauve runways while mint equations and mustard highlights glow like remembered color. UI shadows separate into colored afterimages.</p>
+          <div class="trait-row"><span>Twilight</span><span>Color echoes</span><span>Floating forms</span><span>Cinematic</span></div>
+          <div class="spec-row">
+            <div class="palette"><i style="background:#9686b2"></i><i style="background:#ef7460"></i><i style="background:#f3c657"></i><i style="background:#8bc8bd"></i><i style="background:#392f50"></i></div>
+            <div class="ui-sample"><label><span>Angle of attack</span><b>6 deg</b></label><div class="track" style="--fill:48%;--accent:#745493"></div></div>
+          </div>
+          <div class="choice-row"><span class="best-for">Best for: wonder with a sophisticated mood</span><button class="choose" type="button">Choose direction 02</button></div>
+        </div>
+      </article>
+
+      <article class="concept direction-c" data-direction="Cloud Confection">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="clouds" aria-label="A tiny wing flying between enormous sculptural clouds"></canvas>
+          <span class="visual-badge">Inside the air mass</span>
+          <span class="visual-equation">Wake turns down / wing rises</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Direction 03</span><h2>Cloud Confection</h2></div><span class="intensity">Dream level<br />5 / 5</span></div>
+          <p class="concept-description">The simulator becomes a small object in an oversized sky. Layered clouds feel sculpted from frosting, equations sit on floating signboards, and force arrows cast their own impossible shadows.</p>
+          <div class="trait-row"><span>Surreal scale</span><span>Sculpted clouds</span><span>Floating labels</span><span>Most immersive</span></div>
+          <div class="spec-row">
+            <div class="palette"><i style="background:#b4dde1"></i><i style="background:#fff4de"></i><i style="background:#f2a8bc"></i><i style="background:#e95743"></i><i style="background:#617a9f"></i></div>
+            <div class="ui-sample"><label><span>Pressure difference</span><b>316 Pa</b></label><div class="track" style="--fill:71%;--accent:#2e8295"></div></div>
+          </div>
+          <div class="choice-row"><span class="best-for">Best for: a memorable, dream-first experience</span><button class="choose" type="button">Choose direction 03</button></div>
+        </div>
+      </article>
+
+      <article class="concept direction-d" data-direction="Painted Lab Notes">
+        <div class="visual">
+          <canvas class="concept-canvas" data-scene="studio" aria-label="A painted wing diagram on warm paper with colorful annotations"></canvas>
+          <span class="visual-badge">Pressure map</span>
+          <span class="visual-equation">Integral p n dA = force</span>
+        </div>
+        <div class="concept-body">
+          <div class="concept-heading"><div><span class="number">Direction 04</span><h2>Painted Lab Notes</h2></div><span class="intensity">Dream level<br />3 / 5</span></div>
+          <p class="concept-description">A warm paper studio where diagrams feel hand-painted rather than digital. Blocks of turquoise, pink, and yolk yellow organize the lesson while imperfect outlines soften the technical interface.</p>
+          <div class="trait-row"><span>Warm paper</span><span>Visible brushwork</span><span>Diagram-first</span><span>Most educational</span></div>
+          <div class="spec-row">
+            <div class="palette"><i style="background:#f5eadb"></i><i style="background:#3f9a9d"></i><i style="background:#f2c348"></i><i style="background:#e96a61"></i><i style="background:#304e54"></i></div>
+            <div class="ui-sample"><label><span>Net lift</span><b>5.1 kN</b></label><div class="track" style="--fill:58%;--accent:#e96a61"></div></div>
+          </div>
+          <div class="choice-row"><span class="best-for">Best for: understanding with handmade character</span><button class="choose" type="button">Choose direction 04</button></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer-note"><span><b>Selection is saved in this browser.</b> Reopen this file and the chosen direction will remain marked.</span><span>The main flight site has not been changed.</span></footer>
+
+  <script>
+    const palettes = {
+      daylight: { sky: '#88cddd', horizon: '#efb766', wing: '#f2d264', edge: '#b44e3d', shadow: '#d38ba5', cloud: '#fff6df', force: '#ec5b45', ink: '#2a5863' },
+      twilight: { sky: '#9686b2', horizon: '#e79a7c', wing: '#ef7460', edge: '#4c3b62', shadow: '#6e568b', cloud: '#e6d5d1', force: '#f3c657', ink: '#382f50' },
+      clouds: { sky: '#b4dde1', horizon: '#e8b8c2', wing: '#f2c957', edge: '#a5483c', shadow: '#7182a5', cloud: '#fff3dd', force: '#e95844', ink: '#35646e' },
+      studio: { sky: '#f5eadb', horizon: '#e2c78c', wing: '#f2c348', edge: '#9f493c', shadow: '#e9a4b0', cloud: '#74b9bb', force: '#e9675c', ink: '#304e54' }
+    }
+
+    function seeded(seed) {
+      let state = seed >>> 0
+      return () => {
+        state = (state * 1664525 + 1013904223) >>> 0
+        return state / 4294967296
+      }
+    }
+
+    function cloud(ctx, x, y, scale, fill, shadow) {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.scale(scale, scale)
+      ctx.fillStyle = shadow
+      ctx.beginPath()
+      ctx.moveTo(-62, 14); ctx.bezierCurveTo(-58, -13, -34, -25, -13, -17); ctx.bezierCurveTo(-2, -52, 47, -48, 52, -11); ctx.bezierCurveTo(82, -8, 88, 30, 57, 35); ctx.lineTo(-42, 35); ctx.bezierCurveTo(-70, 34, -82, 22, -62, 14); ctx.fill()
+      ctx.translate(-6, -7)
+      ctx.fillStyle = fill
+      ctx.beginPath()
+      ctx.moveTo(-62, 14); ctx.bezierCurveTo(-58, -13, -34, -25, -13, -17); ctx.bezierCurveTo(-2, -52, 47, -48, 52, -11); ctx.bezierCurveTo(82, -8, 88, 30, 57, 35); ctx.lineTo(-42, 35); ctx.bezierCurveTo(-70, 34, -82, 22, -62, 14); ctx.fill()
+      ctx.restore()
+    }
+
+    function arrow(ctx, x1, y1, x2, y2, color, label) {
+      const angle = Math.atan2(y2 - y1, x2 - x1)
+      ctx.save()
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 5; ctx.lineCap = 'round'
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 14 * Math.cos(angle - .55), y2 - 14 * Math.sin(angle - .55)); ctx.lineTo(x2 - 14 * Math.cos(angle + .55), y2 - 14 * Math.sin(angle + .55)); ctx.closePath(); ctx.fill()
+      ctx.font = '600 11px DM Mono'; ctx.fillText(label, x2 + 9, y2 - 7)
+      ctx.restore()
+    }
+
+    function wing(ctx, w, h, p, variant) {
+      const cx = w * .51, cy = h * .55
+      ctx.save()
+      ctx.translate(cx, cy)
+      if (variant === 'twilight') ctx.rotate(-.08)
+      if (variant === 'studio') ctx.rotate(.025)
+      ctx.fillStyle = p.shadow
+      ctx.beginPath(); ctx.moveTo(-w*.25, 17); ctx.bezierCurveTo(-w*.12, -35, w*.16, -30, w*.27, 5); ctx.bezierCurveTo(w*.1, 57, -w*.13, 64, -w*.25, 17); ctx.fill()
+      ctx.translate(-7, -9)
+      ctx.fillStyle = p.wing; ctx.strokeStyle = p.edge; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(-w*.25, 17); ctx.bezierCurveTo(-w*.12, -35, w*.16, -30, w*.27, 5); ctx.bezierCurveTo(w*.1, 38, -w*.13, 47, -w*.25, 17); ctx.closePath(); ctx.fill(); ctx.stroke()
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(-w*.2, 10); ctx.bezierCurveTo(-w*.06, -18, w*.14, -18, w*.22, -1); ctx.stroke()
+      ctx.restore()
+      arrow(ctx, cx, cy - 35, cx, cy - 122, p.force, 'LIFT')
+    }
+
+    function paintScene(canvas) {
+      const scene = canvas.dataset.scene
+      const p = palettes[scene]
+      const rect = canvas.getBoundingClientRect()
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr))
+      const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr)
+      const w = rect.width, h = rect.height, rand = seeded(scene.length * 9701)
+
+      ctx.fillStyle = p.sky; ctx.fillRect(0, 0, w, h)
+      ctx.fillStyle = p.horizon
+      if (scene === 'studio') {
+        ctx.fillRect(0, h*.7, w, h*.3)
+        ctx.fillStyle = '#66abad'; ctx.fillRect(0, 0, w*.09, h); ctx.fillRect(w*.86, 0, w*.14, h)
+      } else {
+        ctx.beginPath(); ctx.moveTo(0, h*.76); ctx.bezierCurveTo(w*.28, h*.58, w*.62, h*.82, w, h*.62); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.fill()
+      }
+
+      if (scene === 'daylight') {
+        ctx.fillStyle = '#f5c74c'; ctx.beginPath(); ctx.arc(w*.82, h*.19, 34, 0, Math.PI*2); ctx.fill()
+        cloud(ctx, w*.2, h*.23, .68, p.cloud, p.shadow); cloud(ctx, w*.76, h*.39, .43, p.cloud, p.shadow)
+      }
+      if (scene === 'twilight') {
+        ctx.fillStyle = '#f2c655'; ctx.beginPath(); ctx.arc(w*.17, h*.22, 27, 0, Math.PI*2); ctx.fill()
+        cloud(ctx, w*.77, h*.27, .65, '#d9ced7', '#765d8e')
+      }
+      if (scene === 'clouds') {
+        cloud(ctx, w*.16, h*.52, 1.25, p.cloud, '#e9aabe'); cloud(ctx, w*.79, h*.31, 1.05, p.cloud, '#91a9bd'); cloud(ctx, w*.5, h*.85, 1.45, p.cloud, '#e9aabe')
+      }
+      if (scene === 'studio') {
+        ctx.strokeStyle = '#56a1a4'; ctx.lineWidth = 2
+        for (let y=45; y<h; y+=42) { ctx.beginPath(); ctx.moveTo(w*.12,y); ctx.lineTo(w*.83,y); ctx.stroke() }
+        ctx.fillStyle = '#e96a61'; ctx.font = '600 12px DM Mono'; ctx.fillText('PRESSURE / VELOCITY / AREA', w*.16, 30)
+      }
+
+      wing(ctx, w, h, p, scene)
+      if (scene === 'clouds') arrow(ctx, w*.72, h*.54, w*.59, h*.67, '#6b75a1', 'DOWNWASH')
+      else arrow(ctx, w*.73, h*.58, w*.61, h*.66, p.ink, 'AIR TURNS DOWN')
+
+      ctx.save()
+      for (let i=0; i<160; i++) {
+        const x=rand()*w, y=rand()*h, light=rand()>.5
+        ctx.strokeStyle = light ? 'rgba(255,255,255,.11)' : 'rgba(74,54,48,.055)'
+        ctx.lineWidth = 1 + rand()*2
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+3+rand()*10,y+(rand()-.5)*3); ctx.stroke()
+      }
+      ctx.restore()
+    }
+
+    const canvases = [...document.querySelectorAll('.concept-canvas')]
+    function drawAll() { canvases.forEach(paintScene) }
+    window.addEventListener('resize', drawAll)
+    document.fonts.ready.then(drawAll)
+
+    const selection = document.getElementById('selection')
+    const cards = [...document.querySelectorAll('.concept')]
+    function selectDirection(card) {
+      cards.forEach(item => {
+        const selected = item === card
+        item.classList.toggle('is-selected', selected)
+        item.querySelector('.choose').textContent = selected ? 'Selected' : `Choose direction ${item.querySelector('.number').textContent.slice(-2)}`
+      })
+      const name = card.dataset.direction
+      selection.classList.add('has-choice')
+      selection.querySelector('span').textContent = `Selected: ${name}`
+      localStorage.setItem('flight-art-direction', name)
+    }
+
+    cards.forEach(card => card.querySelector('.choose').addEventListener('click', () => selectDirection(card)))
+    const saved = localStorage.getItem('flight-art-direction')
+    const savedCard = cards.find(card => card.dataset.direction === saved)
+    if (savedCard) selectDirection(savedCard)
+  </script>
+</body>
+</html>
