@@ -347,6 +347,9 @@ const FIELD_COLORS = ['#efc45b', '#e98b72', '#91b68d', '#e9b1be', '#d99061']
 const WORLD_HORIZONTAL_SCALE = 0.18
 const FLYER_GROUND_HEIGHT = 1.02
 const SIMULATION_STEP = 1 / 120
+const CAMERA_ORBIT_SPEED = 0.9
+const CAMERA_ELEVATION_SPEED = 0.65
+const createCameraView = () => ({ azimuth: 0, elevation: 25 * Math.PI / 180, distance: 13 })
 const altitudeToWorld = (altitude) => Math.sqrt(Math.max(0, altitude)) * 0.65
 const LANDSCAPE_CELL_SIZE = 48
 const LANDSCAPE_CELLS = [-2, -1, 0, 1, 2].flatMap((x) => [-2, -1, 0, 1, 2].map((z) => [x, z]))
@@ -461,7 +464,7 @@ function SkyLayer({ stateRef, time }) {
   )
 }
 
-function FlyerScene({ throttle, inputRef, stateRef, simulationAccumulatorRef, telemetry, onTelemetry, liftRatio, mode, time, activeControl }) {
+function FlyerScene({ throttle, inputRef, stateRef, simulationAccumulatorRef, cameraViewRef, telemetry, onTelemetry, liftRatio, mode, time, activeControl }) {
   const plane = useRef()
   const aerodynamicForces = useRef()
   const worldForces = useRef()
@@ -501,13 +504,33 @@ function FlyerScene({ throttle, inputRef, stateRef, simulationAccumulatorRef, te
     if (worldForces.current) worldForces.current.position.copy(aircraftPosition.current)
 
     forward.current.set(Math.sin(state.heading), 0, -Math.cos(state.heading))
-    desiredCamera.current.copy(aircraftPosition.current)
-      .addScaledVector(forward.current, -11.5)
-    desiredCamera.current.y += 5.2
+    const cameraView = cameraViewRef.current
+    cameraView.azimuth = Math.atan2(
+      Math.sin(cameraView.azimuth + inputRef.current.viewAzimuth * CAMERA_ORBIT_SPEED * frameDelta),
+      Math.cos(cameraView.azimuth + inputRef.current.viewAzimuth * CAMERA_ORBIT_SPEED * frameDelta),
+    )
+    cameraView.elevation = clamp(
+      cameraView.elevation + inputRef.current.viewElevation * CAMERA_ELEVATION_SPEED * frameDelta,
+      8 * Math.PI / 180,
+      72 * Math.PI / 180,
+    )
+    const orbitHeading = state.heading - cameraView.azimuth
+    const horizontalDistance = Math.cos(cameraView.elevation) * cameraView.distance
+    desiredCamera.current.set(
+      aircraftPosition.current.x - Math.sin(orbitHeading) * horizontalDistance,
+      aircraftPosition.current.y + Math.sin(cameraView.elevation) * cameraView.distance,
+      aircraftPosition.current.z + Math.cos(orbitHeading) * horizontalDistance,
+    )
     const cameraBlend = 1 - Math.exp(-3.2 * frameDelta)
     camera.position.lerp(desiredCamera.current, cameraBlend)
     const lookY = 0.55 + Math.sin(state.pitch) * 3
-    nextCameraTarget.current.copy(aircraftPosition.current).addScaledVector(forward.current, 4.5)
+    const elevationLookAhead = clamp(
+      (70 * Math.PI / 180 - cameraView.elevation) / (45 * Math.PI / 180),
+      0,
+      1,
+    )
+    const viewLookAhead = 4.5 * Math.max(0, Math.cos(cameraView.azimuth)) * elevationLookAhead
+    nextCameraTarget.current.copy(aircraftPosition.current).addScaledVector(forward.current, viewLookAhead)
     nextCameraTarget.current.y += lookY
     cameraTarget.current.lerp(nextCameraTarget.current, 1 - Math.exp(-4.4 * frameDelta))
     camera.lookAt(cameraTarget.current)
@@ -563,13 +586,14 @@ export function WrightLab() {
   const [startMode, setStartMode] = useState('airborne')
   const [mode, setMode] = useState('flight')
   const [telemetry, setTelemetry] = useState(INITIAL_TELEMETRY)
-  const [pressedKeys, setPressedKeys] = useState({ w: false, a: false, s: false, d: false })
+  const [pressedKeys, setPressedKeys] = useState({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
   const [simulatorFocused, setSimulatorFocused] = useState(false)
   const simulator = useRef()
-  const inputRef = useRef({ pitch: 0, roll: 0 })
-  const heldKeysRef = useRef({ w: false, a: false, s: false, d: false })
+  const inputRef = useRef({ pitch: 0, roll: 0, viewAzimuth: 0, viewElevation: 0 })
+  const heldKeysRef = useRef({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
   const flightStateRef = useRef(createFlyerState({ airborne: true }))
   const simulationAccumulatorRef = useRef(0)
+  const cameraViewRef = useRef(createCameraView())
   const time = useTimeOfDay()
   const wingSection = useRef()
   const propulsionSection = useRef()
@@ -623,7 +647,16 @@ export function WrightLab() {
   }, [])
 
   const updateFlightKey = (code, pressed) => {
-    const key = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' }[code]
+    const key = {
+      KeyW: 'w',
+      KeyA: 'a',
+      KeyS: 's',
+      KeyD: 'd',
+      ArrowUp: 'viewUp',
+      ArrowDown: 'viewDown',
+      ArrowLeft: 'viewLeft',
+      ArrowRight: 'viewRight',
+    }[code]
     if (!key) return false
     if (heldKeysRef.current[key] === pressed) return pressed
     const next = { ...heldKeysRef.current, [key]: pressed }
@@ -631,15 +664,17 @@ export function WrightLab() {
     inputRef.current = {
       pitch: (next.w ? 1 : 0) - (next.s ? 1 : 0),
       roll: (next.d ? 1 : 0) - (next.a ? 1 : 0),
+      viewAzimuth: (next.viewRight ? 1 : 0) - (next.viewLeft ? 1 : 0),
+      viewElevation: (next.viewUp ? 1 : 0) - (next.viewDown ? 1 : 0),
     }
     setPressedKeys(next)
     return true
   }
 
   const clearFlightKeys = () => {
-    heldKeysRef.current = { w: false, a: false, s: false, d: false }
-    inputRef.current = { pitch: 0, roll: 0 }
-    setPressedKeys({ w: false, a: false, s: false, d: false })
+    heldKeysRef.current = { w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false }
+    inputRef.current = { pitch: 0, roll: 0, viewAzimuth: 0, viewElevation: 0 }
+    setPressedKeys({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
   }
 
   const handleKeyDown = (event) => {
@@ -684,6 +719,7 @@ export function WrightLab() {
   const restoreFlight = (nextStartMode) => {
     flightStateRef.current = createFlyerState({ airborne: nextStartMode === 'airborne' })
     simulationAccumulatorRef.current = 0
+    cameraViewRef.current = createCameraView()
     setTelemetry(flyerTelemetry(flightStateRef.current))
   }
 
@@ -726,7 +762,7 @@ export function WrightLab() {
           if (event.target.tagName === 'CANVAS') simulator.current?.focus({ preventScroll: true })
         }}
       >
-        <span id="flyer-keyboard-description" className="sr-only">Use W to pitch up, S to pitch down, A to bank left, and D to bank right. Release the keys to return the controls toward neutral.</span>
+        <span id="flyer-keyboard-description" className="sr-only">Use W to pitch up, S to pitch down, A to bank left, and D to bank right. Use the arrow keys to orbit the camera and change its height. Release the flight keys to return the controls toward neutral.</span>
         <div className="scene-toolbar"><SceneBadge>{flightPhase} · {MODE_SHORT[mode]}</SceneBadge><ResetButton onClick={reset} /></div>
         <div className="scene-mode flyer-scene-mode" aria-label="Wright Flyer visualization mode">
           <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => chooseMode('flight')}>Fly</button>
@@ -739,7 +775,7 @@ export function WrightLab() {
           <span data-testid="telemetry-flight-path" data-value={telemetry.flightPathDegrees}><small>Flight path</small><b>{flightPath}</b></span>
         </div>
         <Canvas camera={{ position: [0, 5.5, 13], fov: 48, near: 0.1, far: 240 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <FlyerScene throttle={throttle} inputRef={inputRef} stateRef={flightStateRef} simulationAccumulatorRef={simulationAccumulatorRef} telemetry={telemetry} onTelemetry={setTelemetry} liftRatio={liftRatio} mode={mode} time={time} activeControl={activeControl} />
+          <FlyerScene throttle={throttle} inputRef={inputRef} stateRef={flightStateRef} simulationAccumulatorRef={simulationAccumulatorRef} cameraViewRef={cameraViewRef} telemetry={telemetry} onTelemetry={setTelemetry} liftRatio={liftRatio} mode={mode} time={time} activeControl={activeControl} />
         </Canvas>
         <div className="flight-keys" aria-label="Flight controls">
           {[
