@@ -11,7 +11,18 @@ const MODE_SHORT = { wings: 'WING FORCES', propulsion: 'PROPULSION', controls: '
 const FLYER_MASS = 340
 const FLYER_AREA = 47.4
 const MAX_LAB_ALTITUDE = 304.8
-const INITIAL_TELEMETRY = { speed: 0, altitude: 0, verticalSpeed: 0, netVerticalForce: -FLYER_MASS * GRAVITY, heading: 0, bank: 0, turnRate: 0 }
+const GROUND_VISUAL_SCALE = 0.55
+const INITIAL_TELEMETRY = {
+  speed: 0,
+  altitude: 0,
+  verticalSpeed: 0,
+  netVerticalForce: -FLYER_MASS * GRAVITY,
+  heading: 0,
+  bank: 0,
+  turnRate: 0,
+  trackX: 0,
+  trackZ: 0,
+}
 const WRIGHT_ATMOSPHERE = {
   day: { sky: '#8dcedc', fog: '#8dcedc', cloud: '#fff9ed', ground: '#e8b47d' },
   evening: { sky: '#a496c9', fog: '#c7a3bf', cloud: '#efd5e7', ground: '#b88dac', fields: ['#c7a6d6', '#db91aa', '#8fa6bc', '#e5b078', '#9a8fc1'] },
@@ -111,7 +122,7 @@ function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
   }, [throttle, pitch, warp, yaw])
 
   useEffect(() => {
-    const state = { speed: 0, altitude: 0, verticalSpeed: 0, heading: 0 }
+    const state = { speed: 0, altitude: 0, verticalSpeed: 0, heading: 0, trackX: 0, trackZ: 0 }
     let frame
     let lastTime = performance.now()
     let lastPublish = 0
@@ -142,6 +153,8 @@ function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
         state.heading += turnRate * realDt
         state.heading = Math.atan2(Math.sin(state.heading), Math.cos(state.heading))
       }
+      state.trackX += Math.sin(state.heading) * state.speed * realDt * GROUND_VISUAL_SCALE
+      state.trackZ -= Math.cos(state.heading) * state.speed * realDt * GROUND_VISUAL_SCALE
 
       if (state.altitude <= 0) {
         state.altitude = 0
@@ -400,52 +413,58 @@ function ControlGuides({ activeControl }) {
 }
 
 const FIELD_COLORS = ['#efc45b', '#e98b72', '#91b68d', '#e9b1be', '#d99061']
-const FIELD_TILES = Array.from({ length: 48 }, (_, index) => {
-  const column = index % 8
-  const row = Math.floor(index / 8)
+const LANDSCAPE_CELL_SIZE = 42
+const LANDSCAPE_AXIS = new THREE.Vector3(0, 1, 0)
+const LANDSCAPE_CELLS = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => [x, z]))
+const FIELD_TILES = Array.from({ length: 16 }, (_, index) => {
+  const column = index % 4
+  const row = Math.floor(index / 4)
   return [
-    -18 + column * 5.15 + (row % 2) * 0.7,
-    -18 + row * 7.1,
-    4.2 + (index % 3) * 0.3,
-    5.6 + (index % 4) * 0.25,
+    -15.5 + column * 10.3 + (row % 2) * 0.5,
+    -15.5 + row * 10.3,
+    8.7 + (index % 3) * 0.25,
+    8.6 + (index % 4) * 0.2,
     FIELD_COLORS[index % FIELD_COLORS.length],
   ]
 })
 
-function KineticLandscape({ speed, altitude, time, heading }) {
-  const moving = useRef()
-  const fence = useRef()
-  const streaks = useRef()
-  const previousHeading = useRef(heading)
+function LandscapeCell({ cellX, cellZ, atmosphere, time }) {
+  return (
+    <group position={[cellX * LANDSCAPE_CELL_SIZE, 0, cellZ * LANDSCAPE_CELL_SIZE]}>
+      {FIELD_TILES.map(([x, z, width, depth, color], index) => (
+        <mesh key={`field-${index}`} position={[x, -2.39, z]} rotation={[-Math.PI / 2, 0, (index % 3 - 1) * 0.045]} receiveShadow>
+          <planeGeometry args={[width, depth]} />
+          <meshStandardMaterial color={atmosphere.fields?.[index % atmosphere.fields.length] || color} roughness={1} transparent opacity={time === 'night' ? 0.76 : 0.9} />
+        </mesh>
+      ))}
+      {Array.from({ length: 8 }, (_, index) => (
+        <group key={`fence-${index}`} position={[-15 + (index % 2) * 30, -2.05, -17 + Math.floor(index / 2) * 11]}>
+          <mesh><boxGeometry args={[0.08, 0.75, 0.08]} /><meshStandardMaterial color="#8d513d" /></mesh>
+          <mesh position={[0, 0.14, 0]} rotation={[0, 0, Math.PI / 2]}><boxGeometry args={[0.045, 2.1, 0.045]} /><meshStandardMaterial color="#b66a49" /></mesh>
+        </group>
+      ))}
+      {Array.from({ length: 12 }, (_, index) => (
+        <mesh key={`streak-${index}`} position={[-16 + (index % 4) * 10.5, -2.35, -16 + Math.floor(index / 4) * 16]}>
+          <boxGeometry args={[0.035, 0.018, 0.75 + (index % 3) * 0.22]} />
+          <meshBasicMaterial color={index % 2 ? '#fff0c6' : '#d96c5b'} transparent opacity={0.68} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
 
-  useFrame((_, delta) => {
-    const headingDelta = Math.atan2(
-      Math.sin(heading - previousHeading.current),
-      Math.cos(heading - previousHeading.current),
-    )
-    previousHeading.current = heading
-    const rotation = -headingDelta
-    const cosine = Math.cos(rotation)
-    const sine = Math.sin(rotation)
+function KineticLandscape({ altitude, time, heading, trackX, trackZ }) {
+  const world = useRef()
+  const worldOffset = useRef(new THREE.Vector3())
 
-    const moveAndWrap = (group, rate, orientationAxis) => {
-      if (!group.current) return
-      group.current.children.forEach((child) => {
-        const rotatedX = child.position.x * cosine - child.position.z * sine
-        const rotatedZ = child.position.x * sine + child.position.z * cosine
-        child.position.x = rotatedX
-        child.position.z = rotatedZ + speed * delta * rate
-        if (child.position.x > 21) child.position.x -= 42
-        if (child.position.x < -21) child.position.x += 42
-        if (child.position.z > 21) child.position.z -= 42
-        if (child.position.z < -21) child.position.z += 42
-        if (orientationAxis === 'y') child.rotation.y += rotation
-        if (orientationAxis === 'z') child.rotation.z += rotation
-      })
-    }
-    moveAndWrap(moving, 0.54, 'z')
-    moveAndWrap(fence, 0.72, 'y')
-    moveAndWrap(streaks, 1.05, 'y')
+  useFrame(() => {
+    if (!world.current) return
+    const phaseX = THREE.MathUtils.euclideanModulo(trackX + LANDSCAPE_CELL_SIZE / 2, LANDSCAPE_CELL_SIZE) - LANDSCAPE_CELL_SIZE / 2
+    const phaseZ = THREE.MathUtils.euclideanModulo(trackZ + LANDSCAPE_CELL_SIZE / 2, LANDSCAPE_CELL_SIZE) - LANDSCAPE_CELL_SIZE / 2
+    worldOffset.current.set(-phaseX, 0, -phaseZ).applyAxisAngle(LANDSCAPE_AXIS, -heading)
+    world.current.position.x = worldOffset.current.x
+    world.current.position.z = worldOffset.current.z
+    world.current.rotation.y = -heading
   })
 
   const shadowOpacity = clamp(0.32 - altitude * 0.007, 0.07, 0.32)
@@ -458,28 +477,9 @@ function KineticLandscape({ speed, altitude, time, heading }) {
         <planeGeometry args={[70, 70]} />
         <meshStandardMaterial color={atmosphere.ground} roughness={1} />
       </mesh>
-      <group ref={moving}>
-        {FIELD_TILES.map(([x, z, width, depth, color], index) => (
-          <mesh key={index} position={[x, -2.39, z]} rotation={[-Math.PI / 2, 0, (index % 3 - 1) * 0.045]} receiveShadow>
-            <planeGeometry args={[width, depth]} />
-            <meshStandardMaterial color={atmosphere.fields?.[index % atmosphere.fields.length] || color} roughness={1} transparent opacity={time === 'night' ? 0.76 : 0.9} />
-          </mesh>
-        ))}
-      </group>
-      <group ref={fence}>
-        {Array.from({ length: 21 }, (_, index) => (
-          <group key={index} position={[-15 + (index % 3) * 15, -2.05, -18 + Math.floor(index / 3) * 6]}>
-            <mesh><boxGeometry args={[0.08, 0.75, 0.08]} /><meshStandardMaterial color="#8d513d" /></mesh>
-            <mesh position={[0, 0.14, 0]} rotation={[0, 0, Math.PI / 2]}><boxGeometry args={[0.045, 2.1, 0.045]} /><meshStandardMaterial color="#b66a49" /></mesh>
-          </group>
-        ))}
-      </group>
-      <group ref={streaks}>
-        {Array.from({ length: 32 }, (_, index) => (
-          <mesh key={index} position={[-18 + (index % 8) * 5.1, -2.35, -18 + Math.floor(index / 8) * 11.5]}>
-            <boxGeometry args={[0.035, 0.018, 0.75 + (index % 3) * 0.22]} />
-            <meshBasicMaterial color={index % 2 ? '#fff0c6' : '#d96c5b'} transparent opacity={0.68} />
-          </mesh>
+      <group ref={world}>
+        {LANDSCAPE_CELLS.map(([cellX, cellZ]) => (
+          <LandscapeCell key={`${cellX}-${cellZ}`} cellX={cellX} cellZ={cellZ} atmosphere={atmosphere} time={time} />
         ))}
       </group>
       <mesh position={[0, -2.34, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[shadowScale * 2.2, shadowScale, 1]}>
@@ -490,7 +490,7 @@ function KineticLandscape({ speed, altitude, time, heading }) {
   )
 }
 
-function FlyerScene({ throttle, pitch, warp, yaw, liftRatio, lift, drag, thrust, mode, speed, altitude, time, heading, activeControl }) {
+function FlyerScene({ throttle, pitch, warp, yaw, liftRatio, lift, drag, thrust, mode, altitude, time, heading, trackX, trackZ, activeControl }) {
   const plane = useRef()
   const atmosphere = WRIGHT_ATMOSPHERE[time]
   const targetY = -1.45 + (altitude / MAX_LAB_ALTITUDE) * 2.8
@@ -507,7 +507,7 @@ function FlyerScene({ throttle, pitch, warp, yaw, liftRatio, lift, drag, thrust,
       <color attach="background" args={[atmosphere.sky]} />
       <fog attach="fog" args={[atmosphere.fog, 15, 36]} />
       <StudioLights time={time} />
-      <KineticLandscape speed={speed} altitude={altitude} time={time} heading={heading} />
+      <KineticLandscape altitude={altitude} time={time} heading={heading} trackX={trackX} trackZ={trackZ} />
       <Cloud position={[-6, 3.1, -8]} scale={0.9} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
       <Cloud position={[7, 4, -11]} scale={1.2} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
       {time === 'evening' && <mesh position={[-7, 4.8, -13]}><sphereGeometry args={[0.72, 24, 18]} /><meshBasicMaterial color="#ffd0aa" /></mesh>}
@@ -624,7 +624,7 @@ export function WrightLab() {
           <span><small>Flight path</small><b>{flightPath}</b></span>
         </div>
         <Canvas camera={{ position: [8, 4.5, 8], fov: 44 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <FlyerScene throttle={throttle} pitch={pitch} warp={warp} yaw={yaw} liftRatio={liftRatio} lift={forces.lift} drag={forces.drag} thrust={thrust} mode={mode} speed={speed} altitude={telemetry.altitude} time={time} heading={telemetry.heading} activeControl={activeControl} />
+          <FlyerScene throttle={throttle} pitch={pitch} warp={warp} yaw={yaw} liftRatio={liftRatio} lift={forces.lift} drag={forces.drag} thrust={thrust} mode={mode} altitude={telemetry.altitude} time={time} heading={telemetry.heading} trackX={telemetry.trackX} trackZ={telemetry.trackZ} activeControl={activeControl} />
         </Canvas>
         <div className="instrument-cluster instrument-cluster--wright">
           <div className="dial" style={{ '--needle': `${-110 + (speed / 25) * 220}deg` }}><i /><span>{Math.round(speed * 2.237)}</span><small>MPH</small></div>
