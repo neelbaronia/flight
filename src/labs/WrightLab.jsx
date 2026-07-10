@@ -1,28 +1,24 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Billboard, Line, OrbitControls, Stars, Text } from '@react-three/drei'
+import { Billboard, Line, Stars, Text } from '@react-three/drei'
+import { Plane, PlaneTakeoff } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
-import { clamp, flightForces, formatForce, GRAVITY } from '../physics.js'
+import { clamp, formatForce } from '../physics.js'
+import {
+  createFlyerState,
+  flyerTelemetry,
+  FLYER_AREA,
+  FLYER_MASS,
+  FLYER_WEIGHT,
+  MAX_FLYER_ALTITUDE,
+  stepFlyer,
+} from './wrightFlight.js'
 
-const MODE_SHORT = { wings: 'WING FORCES', propulsion: 'PROPULSION', controls: 'CONTROLS' }
-const FLYER_MASS = 340
-const FLYER_AREA = 47.4
-const MAX_LAB_ALTITUDE = 304.8
-const GROUND_VISUAL_SCALE = 0.55
-const INITIAL_TELEMETRY = {
-  speed: 0,
-  altitude: 0,
-  verticalSpeed: 0,
-  netVerticalForce: -FLYER_MASS * GRAVITY,
-  heading: 0,
-  bank: 0,
-  turnRate: 0,
-  trackX: 0,
-  trackZ: 0,
-}
+const MODE_SHORT = { flight: 'FLIGHT', wings: 'WING FORCES', propulsion: 'PROPULSION', controls: 'CONTROLS' }
+const INITIAL_TELEMETRY = flyerTelemetry(createFlyerState({ airborne: true }))
 const WRIGHT_ATMOSPHERE = {
   day: { sky: '#8dcedc', fog: '#8dcedc', cloud: '#fff9ed', ground: '#e8b47d' },
   evening: { sky: '#a496c9', fog: '#c7a3bf', cloud: '#efd5e7', ground: '#b88dac', fields: ['#c7a6d6', '#db91aa', '#8fa6bc', '#e5b078', '#9a8fc1'] },
@@ -113,72 +109,6 @@ function Beam({ from, to, radius = 0.025, color = '#8c503a' }) {
   )
 }
 
-function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
-  const controls = useRef({ throttle, pitch, warp, yaw })
-  const [telemetry, setTelemetry] = useState(INITIAL_TELEMETRY)
-
-  useEffect(() => {
-    controls.current = { throttle, pitch, warp, yaw }
-  }, [throttle, pitch, warp, yaw])
-
-  useEffect(() => {
-    const state = { speed: 0, altitude: 0, verticalSpeed: 0, heading: 0, trackX: 0, trackZ: 0 }
-    let frame
-    let lastTime = performance.now()
-    let lastPublish = 0
-    const tick = (now) => {
-      const realDt = Math.min((now - lastTime) / 1000, 0.1)
-      const dt = realDt * 6.5
-      lastTime = now
-      const current = controls.current
-      const forces = flightForces({ speed: state.speed, area: FLYER_AREA, angle: current.pitch, dragCoefficient: 0.055, flapBoost: 0.28 })
-      const thrust = current.throttle * 5.5
-      const rollingResistance = state.altitude < 0.02 && state.speed > 0 ? 18 : 0
-      const horizontalAcceleration = (thrust - forces.drag - rollingResistance) / FLYER_MASS
-      state.speed = clamp(state.speed + horizontalAcceleration * dt, 0, 25)
-
-      const bank = current.warp * 2.4
-      const verticalLift = forces.lift * Math.cos((bank * Math.PI) / 180)
-      const netVerticalForce = verticalLift - FLYER_MASS * GRAVITY
-      let verticalAcceleration = clamp(netVerticalForce / FLYER_MASS, -3.5, 2.8)
-      if (state.altitude <= 0 && verticalAcceleration < 0) verticalAcceleration = 0
-      state.verticalSpeed = clamp((state.verticalSpeed + verticalAcceleration * dt) * Math.exp(-0.08 * dt), -12, 15)
-      state.altitude += state.verticalSpeed * dt
-
-      let turnRate = 0
-      if (state.altitude > 0.05 && state.speed > 4) {
-        const coordinatedTurn = (GRAVITY * Math.tan((bank * Math.PI) / 180)) / state.speed
-        const rudderTurn = ((current.yaw * Math.PI) / 180) * 0.08
-        turnRate = clamp(coordinatedTurn + rudderTurn, -0.45, 0.45)
-        state.heading += turnRate * realDt
-        state.heading = Math.atan2(Math.sin(state.heading), Math.cos(state.heading))
-      }
-      state.trackX += Math.sin(state.heading) * state.speed * realDt * GROUND_VISUAL_SCALE
-      state.trackZ -= Math.cos(state.heading) * state.speed * realDt * GROUND_VISUAL_SCALE
-
-      if (state.altitude <= 0) {
-        state.altitude = 0
-        if (state.verticalSpeed < 0) state.verticalSpeed = 0
-      }
-      if (state.altitude >= MAX_LAB_ALTITUDE) {
-        state.altitude = MAX_LAB_ALTITUDE
-        if (state.verticalSpeed > 0) state.verticalSpeed = 0
-      }
-
-      if (now - lastPublish > 55) {
-        setTelemetry({ ...state, netVerticalForce, bank, turnRate })
-        lastPublish = now
-      }
-      frame = requestAnimationFrame(tick)
-    }
-
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [resetSignal])
-
-  return telemetry
-}
-
 function Propeller({ throttle, position, highlighted, direction = 1 }) {
   const prop = useRef()
   useFrame((_, delta) => {
@@ -219,7 +149,8 @@ function FlyerModel({ pitch, warp, yaw, throttle, mode, activeControl }) {
       }
       materials.forEach((material) => {
         if (material.userData.baseOpacity === undefined) material.userData.baseOpacity = material.opacity
-        const dimmed = activeControl && mechanism !== activeControl
+        const relevantMechanisms = activeControl === 'turn' ? ['warp', 'yaw'] : [activeControl]
+        const dimmed = activeControl && !relevantMechanisms.includes(mechanism)
         material.transparent = dimmed || material.userData.baseOpacity < 1
         material.opacity = dimmed ? material.userData.baseOpacity * 0.14 : material.userData.baseOpacity
         material.depthWrite = !dimmed
@@ -402,7 +333,7 @@ function PropWash({ throttle }) {
 }
 
 function ControlGuides({ activeControl }) {
-  const visible = (control) => !activeControl || activeControl === control
+  const visible = (control) => !activeControl || activeControl === control || (activeControl === 'turn' && ['warp', 'yaw'].includes(control))
   return (
     <group>
       {visible('pitch') && <Billboard position={[0, 0.75, -2.55]}><Text fontSize={0.25} color="#65448c" outlineWidth={0.016} outlineColor="#fff5e7">ELEVATOR · PITCH</Text></Billboard>}
@@ -413,38 +344,50 @@ function ControlGuides({ activeControl }) {
 }
 
 const FIELD_COLORS = ['#efc45b', '#e98b72', '#91b68d', '#e9b1be', '#d99061']
-const LANDSCAPE_CELL_SIZE = 42
-const LANDSCAPE_AXIS = new THREE.Vector3(0, 1, 0)
-const LANDSCAPE_CELLS = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => [x, z]))
+const WORLD_HORIZONTAL_SCALE = 0.18
+const FLYER_GROUND_HEIGHT = 1.02
+const SIMULATION_STEP = 1 / 120
+const altitudeToWorld = (altitude) => Math.sqrt(Math.max(0, altitude)) * 0.65
+const LANDSCAPE_CELL_SIZE = 48
+const LANDSCAPE_CELLS = [-2, -1, 0, 1, 2].flatMap((x) => [-2, -1, 0, 1, 2].map((z) => [x, z]))
 const FIELD_TILES = Array.from({ length: 16 }, (_, index) => {
   const column = index % 4
   const row = Math.floor(index / 4)
   return [
-    -15.5 + column * 10.3 + (row % 2) * 0.5,
-    -15.5 + row * 10.3,
-    8.7 + (index % 3) * 0.25,
-    8.6 + (index % 4) * 0.2,
+    -18 + column * 12 + (row % 2) * 0.6,
+    -18 + row * 12,
+    10.4 + (index % 3) * 0.25,
+    10.2 + (index % 4) * 0.2,
     FIELD_COLORS[index % FIELD_COLORS.length],
   ]
 })
+const DISTANT_FIELD_TILES = [[-12, -12], [12, -12], [-12, 12], [12, 12]]
 
-function LandscapeCell({ cellX, cellZ, atmosphere, time }) {
+function LandscapeCell({ cellX, cellZ, atmosphere, time, detail }) {
   return (
     <group position={[cellX * LANDSCAPE_CELL_SIZE, 0, cellZ * LANDSCAPE_CELL_SIZE]}>
-      {FIELD_TILES.map(([x, z, width, depth, color], index) => (
-        <mesh key={`field-${index}`} position={[x, -2.39, z]} rotation={[-Math.PI / 2, 0, (index % 3 - 1) * 0.045]} receiveShadow>
+      {detail ? FIELD_TILES.map(([x, z, width, depth, color], index) => (
+        <mesh key={`field-${index}`} position={[x, 0.015, z]} rotation={[-Math.PI / 2, 0, (index % 3 - 1) * 0.035]} receiveShadow>
           <planeGeometry args={[width, depth]} />
           <meshStandardMaterial color={atmosphere.fields?.[index % atmosphere.fields.length] || color} roughness={1} transparent opacity={time === 'night' ? 0.76 : 0.9} />
         </mesh>
-      ))}
-      {Array.from({ length: 8 }, (_, index) => (
-        <group key={`fence-${index}`} position={[-15 + (index % 2) * 30, -2.05, -17 + Math.floor(index / 2) * 11]}>
+      )) : DISTANT_FIELD_TILES.map(([x, z], index) => {
+        const colorIndex = Math.abs(cellX * 3 + cellZ * 5 + index) % FIELD_COLORS.length
+        return (
+          <mesh key={`distant-field-${index}`} position={[x, 0.01, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[23.2, 23.2]} />
+            <meshStandardMaterial color={atmosphere.fields?.[colorIndex] || FIELD_COLORS[colorIndex]} roughness={1} transparent opacity={time === 'night' ? 0.62 : 0.82} />
+          </mesh>
+        )
+      })}
+      {detail && Array.from({ length: 8 }, (_, index) => (
+        <group key={`fence-${index}`} position={[-18 + (index % 2) * 36, 0.36, -20 + Math.floor(index / 2) * 13]}>
           <mesh><boxGeometry args={[0.08, 0.75, 0.08]} /><meshStandardMaterial color="#8d513d" /></mesh>
           <mesh position={[0, 0.14, 0]} rotation={[0, 0, Math.PI / 2]}><boxGeometry args={[0.045, 2.1, 0.045]} /><meshStandardMaterial color="#b66a49" /></mesh>
         </group>
       ))}
-      {Array.from({ length: 12 }, (_, index) => (
-        <mesh key={`streak-${index}`} position={[-16 + (index % 4) * 10.5, -2.35, -16 + Math.floor(index / 4) * 16]}>
+      {detail && Array.from({ length: 12 }, (_, index) => (
+        <mesh key={`streak-${index}`} position={[-18 + (index % 4) * 12, 0.075, -18 + Math.floor(index / 4) * 18]}>
           <boxGeometry args={[0.035, 0.018, 0.75 + (index % 3) * 0.22]} />
           <meshBasicMaterial color={index % 2 ? '#fff0c6' : '#d96c5b'} transparent opacity={0.68} />
         </mesh>
@@ -453,120 +396,202 @@ function LandscapeCell({ cellX, cellZ, atmosphere, time }) {
   )
 }
 
-function KineticLandscape({ altitude, time, heading, trackX, trackZ }) {
+function InfiniteLandscape({ stateRef, time }) {
   const world = useRef()
-  const worldOffset = useRef(new THREE.Vector3())
+  const shadow = useRef()
+  const atmosphere = WRIGHT_ATMOSPHERE[time]
 
   useFrame(() => {
-    if (!world.current) return
-    const phaseX = THREE.MathUtils.euclideanModulo(trackX + LANDSCAPE_CELL_SIZE / 2, LANDSCAPE_CELL_SIZE) - LANDSCAPE_CELL_SIZE / 2
-    const phaseZ = THREE.MathUtils.euclideanModulo(trackZ + LANDSCAPE_CELL_SIZE / 2, LANDSCAPE_CELL_SIZE) - LANDSCAPE_CELL_SIZE / 2
-    worldOffset.current.set(-phaseX, 0, -phaseZ).applyAxisAngle(LANDSCAPE_AXIS, -heading)
-    world.current.position.x = worldOffset.current.x
-    world.current.position.z = worldOffset.current.z
-    world.current.rotation.y = -heading
+    const state = stateRef.current
+    const aircraftX = state.positionX * WORLD_HORIZONTAL_SCALE
+    const aircraftZ = state.positionZ * WORLD_HORIZONTAL_SCALE
+    if (world.current) {
+      world.current.position.x = Math.round(aircraftX / LANDSCAPE_CELL_SIZE) * LANDSCAPE_CELL_SIZE
+      world.current.position.z = Math.round(aircraftZ / LANDSCAPE_CELL_SIZE) * LANDSCAPE_CELL_SIZE
+    }
+    if (shadow.current) {
+      const shadowOpacity = clamp(0.34 - state.altitude * 0.004, 0.04, 0.34)
+      const shadowScale = 1 + Math.min(state.altitude, 40) * 0.03
+      shadow.current.position.x = aircraftX
+      shadow.current.position.z = aircraftZ
+      shadow.current.scale.set(shadowScale * 2.2, shadowScale, 1)
+      shadow.current.material.opacity = shadowOpacity
+    }
   })
-
-  const shadowOpacity = clamp(0.32 - altitude * 0.007, 0.07, 0.32)
-  const shadowScale = 1 + Math.min(altitude, 22) * 0.035
-  const atmosphere = WRIGHT_ATMOSPHERE[time]
 
   return (
     <group>
-      <mesh position={[0, -2.42, -2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[70, 70]} />
-        <meshStandardMaterial color={atmosphere.ground} roughness={1} />
-      </mesh>
       <group ref={world}>
+        <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[LANDSCAPE_CELL_SIZE * 5.4, LANDSCAPE_CELL_SIZE * 5.4]} />
+          <meshStandardMaterial color={atmosphere.ground} roughness={1} />
+        </mesh>
         {LANDSCAPE_CELLS.map(([cellX, cellZ]) => (
-          <LandscapeCell key={`${cellX}-${cellZ}`} cellX={cellX} cellZ={cellZ} atmosphere={atmosphere} time={time} />
+          <LandscapeCell key={`${cellX}-${cellZ}`} cellX={cellX} cellZ={cellZ} atmosphere={atmosphere} time={time} detail={Math.abs(cellX) <= 1 && Math.abs(cellZ) <= 1} />
         ))}
       </group>
-      <mesh position={[0, -2.34, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[shadowScale * 2.2, shadowScale, 1]}>
+      <group position={[0, 0.09, -34]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[4.8, 82]} /><meshStandardMaterial color="#d8b28f" roughness={1} /></mesh>
+        {[-1.05, 1.05].map((x) => <mesh key={x} position={[x, 0.035, 0]}><boxGeometry args={[0.045, 0.035, 82]} /><meshStandardMaterial color="#80513e" /></mesh>)}
+      </group>
+      <mesh ref={shadow} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.9, 40]} />
-        <meshBasicMaterial color="#6e5260" transparent opacity={shadowOpacity} depthWrite={false} />
+        <meshBasicMaterial color="#6e5260" transparent opacity={0.34} depthWrite={false} />
       </mesh>
     </group>
   )
 }
 
-function FlyerScene({ throttle, pitch, warp, yaw, liftRatio, lift, drag, thrust, mode, altitude, time, heading, trackX, trackZ, activeControl }) {
-  const plane = useRef()
+function SkyLayer({ stateRef, time }) {
+  const sky = useRef()
   const atmosphere = WRIGHT_ATMOSPHERE[time]
-  const targetY = -1.45 + (altitude / MAX_LAB_ALTITUDE) * 2.8
   useFrame(() => {
-    if (!plane.current) return
-    plane.current.position.y += (targetY - plane.current.position.y) * 0.08
-    plane.current.rotation.x = (-pitch * Math.PI) / 360
-    const airborneBank = clamp(altitude / 5, 0, 1)
-    plane.current.rotation.z = (-warp * 2.4 * Math.PI) / 180 * airborneBank
-    plane.current.rotation.y = (yaw * Math.PI) / 360
+    if (!sky.current) return
+    sky.current.position.x = stateRef.current.positionX * WORLD_HORIZONTAL_SCALE * 0.86
+    sky.current.position.z = stateRef.current.positionZ * WORLD_HORIZONTAL_SCALE * 0.86
   })
+  return (
+    <group ref={sky}>
+      <Cloud position={[-13, 8, -18]} scale={1.1} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      <Cloud position={[15, 10, -25]} scale={1.45} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      <Cloud position={[6, 6, 13]} scale={0.75} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
+      {time === 'evening' && <mesh position={[-17, 12, -30]}><sphereGeometry args={[1.2, 24, 18]} /><meshBasicMaterial color="#ffd0aa" /></mesh>}
+      {time === 'night' && <><Stars radius={80} depth={22} count={900} factor={3} saturation={0.1} fade speed={0.25} /><mesh position={[-17, 14, -32]}><sphereGeometry args={[0.8, 24, 18]} /><meshBasicMaterial color="#dce8ff" /></mesh></>}
+    </group>
+  )
+}
+
+function FlyerScene({ throttle, inputRef, stateRef, simulationAccumulatorRef, telemetry, onTelemetry, liftRatio, mode, time, activeControl }) {
+  const plane = useRef()
+  const aerodynamicForces = useRef()
+  const worldForces = useRef()
+  const publishElapsed = useRef(0)
+  const cameraTarget = useRef(new THREE.Vector3(0, FLYER_GROUND_HEIGHT, -3))
+  const nextCameraTarget = useRef(new THREE.Vector3())
+  const aircraftPosition = useRef(new THREE.Vector3())
+  const desiredCamera = useRef(new THREE.Vector3())
+  const forward = useRef(new THREE.Vector3(0, 0, -1))
+  const atmosphere = WRIGHT_ATMOSPHERE[time]
+
+  useFrame(({ camera }, delta) => {
+    const frameDelta = Math.min(delta, 0.2)
+    simulationAccumulatorRef.current += frameDelta
+    let state = stateRef.current
+    let stepCount = 0
+    while (simulationAccumulatorRef.current >= SIMULATION_STEP && stepCount < 24) {
+      state = stepFlyer(state, { ...inputRef.current, throttle: throttle / 100 }, SIMULATION_STEP)
+      simulationAccumulatorRef.current -= SIMULATION_STEP
+      stepCount += 1
+    }
+    stateRef.current = state
+
+    aircraftPosition.current.set(
+      state.positionX * WORLD_HORIZONTAL_SCALE,
+      FLYER_GROUND_HEIGHT + altitudeToWorld(state.altitude),
+      state.positionZ * WORLD_HORIZONTAL_SCALE,
+    )
+    if (plane.current) {
+      plane.current.position.copy(aircraftPosition.current)
+      plane.current.rotation.set(state.pitch, -state.heading, -state.bank, 'YXZ')
+    }
+    if (aerodynamicForces.current) {
+      aerodynamicForces.current.position.copy(aircraftPosition.current)
+      aerodynamicForces.current.rotation.set(state.flightPathAngle, -state.heading, -state.bank, 'YXZ')
+    }
+    if (worldForces.current) worldForces.current.position.copy(aircraftPosition.current)
+
+    forward.current.set(Math.sin(state.heading), 0, -Math.cos(state.heading))
+    desiredCamera.current.copy(aircraftPosition.current)
+      .addScaledVector(forward.current, -11.5)
+    desiredCamera.current.y += 5.2
+    const cameraBlend = 1 - Math.exp(-3.2 * frameDelta)
+    camera.position.lerp(desiredCamera.current, cameraBlend)
+    const lookY = 0.55 + Math.sin(state.pitch) * 3
+    nextCameraTarget.current.copy(aircraftPosition.current).addScaledVector(forward.current, 4.5)
+    nextCameraTarget.current.y += lookY
+    cameraTarget.current.lerp(nextCameraTarget.current, 1 - Math.exp(-4.4 * frameDelta))
+    camera.lookAt(cameraTarget.current)
+
+    publishElapsed.current += frameDelta
+    if (publishElapsed.current >= 0.065) {
+      onTelemetry(flyerTelemetry(state))
+      publishElapsed.current = 0
+    }
+  })
+
   return (
     <>
       <color attach="background" args={[atmosphere.sky]} />
-      <fog attach="fog" args={[atmosphere.fog, 15, 36]} />
+      <fog attach="fog" args={[atmosphere.fog, 42, 105]} />
       <StudioLights time={time} />
-      <KineticLandscape altitude={altitude} time={time} heading={heading} trackX={trackX} trackZ={trackZ} />
-      <Cloud position={[-6, 3.1, -8]} scale={0.9} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
-      <Cloud position={[7, 4, -11]} scale={1.2} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
-      {time === 'evening' && <mesh position={[-7, 4.8, -13]}><sphereGeometry args={[0.72, 24, 18]} /><meshBasicMaterial color="#ffd0aa" /></mesh>}
-      {time === 'night' && <><Stars radius={26} depth={12} count={500} factor={2} saturation={0.1} fade speed={0.25} /><mesh position={[-7, 5.2, -14]}><sphereGeometry args={[0.5, 24, 18]} /><meshBasicMaterial color="#dce8ff" /></mesh></>}
-      <group ref={plane} position={[0, -1.5, 0]}>
-        <FlyerModel pitch={pitch} warp={warp} yaw={yaw} throttle={throttle} mode={mode} activeControl={activeControl} />
+      <InfiniteLandscape stateRef={stateRef} time={time} />
+      <SkyLayer stateRef={stateRef} time={time} />
+      <group ref={plane} position={[0, FLYER_GROUND_HEIGHT, 0]}>
+        <FlyerModel pitch={telemetry.elevator} warp={telemetry.warp} yaw={telemetry.rudder} throttle={throttle} mode={mode} activeControl={activeControl} />
 
         {mode === 'wings' && (
-          <>
-            <FlyerWingPressure />
-            <ForceArrow from={[0, 0.8, 0]} direction={[0, 1, 0]} length={Math.min(2.25, 0.6 + liftRatio)} color="#e6543f" label={`LIFT · ${formatForce(lift)}`} />
-            <ForceArrow from={[0, -0.75, 0]} direction={[0, -1, 0]} length={1.45} color="#2d6171" label="WEIGHT" />
-            <ForceArrow from={[2.65, 0.15, 0.25]} direction={[0, 0, 1]} length={1.55} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />
-          </>
+          <FlyerWingPressure />
         )}
 
         {mode === 'propulsion' && (
           <>
             <PropWash throttle={throttle} />
-            <ForceArrow from={[0, 1.45, 0.3]} direction={[0, 0, -1]} length={Math.min(2.4, 0.8 + thrust / 220)} color="#f2c746" label={`THRUST · ${formatForce(thrust)}`} />
-            <ForceArrow from={[2.65, 0.15, 0.25]} direction={[0, 0, 1]} length={1.25} color="#76569b" label="DRAG" />
+            <ForceArrow from={[0, 1.45, 0.3]} direction={[0, 0, -1]} length={Math.min(2.4, 0.8 + telemetry.thrust / 220)} color="#f2c746" label={`THRUST · ${formatForce(telemetry.thrust)}`} />
           </>
         )}
 
         {mode === 'controls' && <ControlGuides activeControl={activeControl} />}
       </group>
-      <OrbitControls enablePan={false} target={[0, targetY * 0.45, 0]} minDistance={7} maxDistance={13} minPolarAngle={0.8} maxPolarAngle={1.9} />
+      <group ref={aerodynamicForces}>
+        {mode === 'wings' && (
+          <>
+            <ForceArrow from={[0, 0.8, 0]} direction={[0, 1, 0]} length={Math.min(2.25, 0.6 + liftRatio)} color="#e6543f" label={`LIFT · ${formatForce(telemetry.lift)}`} />
+            <ForceArrow from={[2.65, 0.15, 0.25]} direction={[0, 0, 1]} length={1.55} color="#76569b" label={`DRAG · ${formatForce(telemetry.drag)}`} />
+          </>
+        )}
+        {mode === 'propulsion' && <ForceArrow from={[2.65, 0.15, 0.25]} direction={[0, 0, 1]} length={1.25} color="#76569b" label="DRAG" />}
+      </group>
+      <group ref={worldForces}>
+        {mode === 'wings' && <ForceArrow from={[0, -0.75, 0]} direction={[0, -1, 0]} length={1.45} color="#2d6171" label="WEIGHT" />}
+      </group>
     </>
   )
 }
 
 export function WrightLab() {
-  const [throttle, setThrottle] = useState(72)
-  const [pitch, setPitch] = useState(5)
-  const [warp, setWarp] = useState(0)
-  const [yaw, setYaw] = useState(0)
-  const [mode, setMode] = useState('wings')
-  const [activeControl, setActiveControl] = useState(null)
+  const [throttle, setThrottle] = useState(78)
+  const [startMode, setStartMode] = useState('airborne')
+  const [mode, setMode] = useState('flight')
+  const [telemetry, setTelemetry] = useState(INITIAL_TELEMETRY)
+  const [pressedKeys, setPressedKeys] = useState({ w: false, a: false, s: false, d: false })
+  const [simulatorFocused, setSimulatorFocused] = useState(false)
+  const simulator = useRef()
+  const inputRef = useRef({ pitch: 0, roll: 0 })
+  const heldKeysRef = useRef({ w: false, a: false, s: false, d: false })
+  const flightStateRef = useRef(createFlyerState({ airborne: true }))
+  const simulationAccumulatorRef = useRef(0)
   const time = useTimeOfDay()
-  const [resetSignal, setResetSignal] = useState(0)
   const wingSection = useRef()
   const propulsionSection = useRef()
   const controlsSection = useRef()
   const lastAutoMode = useRef(null)
-  const telemetry = useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal)
   const speed = telemetry.speed
-  const forces = flightForces({ speed, area: FLYER_AREA, angle: pitch, dragCoefficient: 0.055, flapBoost: 0.28 })
-  const weight = FLYER_MASS * GRAVITY
-  const liftRatio = clamp(forces.lift / weight, 0, 2.2)
-  const thrust = throttle * 5.5
+  const weight = FLYER_WEIGHT
+  const liftRatio = clamp(telemetry.lift / weight, 0, 2.2)
+  const thrust = telemetry.thrust
   const propwashDeltaV = 5 + throttle * 0.09
   const propwashMassFlow = thrust / propwashDeltaV
   const altitudeFeet = telemetry.altitude * 3.28084
-  const headingDegrees = (telemetry.heading * 180 / Math.PI + 360) % 360
+  const headingDegrees = telemetry.headingDegrees
   const flightPath = telemetry.turnRate > 0.015 ? 'CURVING RIGHT ↷' : telemetry.turnRate < -0.015 ? 'CURVING LEFT ↶' : 'STRAIGHT AHEAD'
-  const flightPhase = telemetry.altitude >= MAX_LAB_ALTITUDE - 0.1 ? 'At 1,000 ft ceiling'
+  const flightPhase = telemetry.altitude >= MAX_FLYER_ALTITUDE - 0.1 ? 'At 1,000 ft ceiling'
+    : telemetry.stall ? 'Wing stalled'
     : telemetry.altitude < 0.05
-    ? forces.lift >= weight ? 'Lifting off' : speed < 8 ? 'Takeoff roll' : 'Building lift'
+    ? telemetry.lift >= weight ? 'Lifting off' : speed < 8 ? 'Takeoff roll' : 'Building lift'
     : telemetry.verticalSpeed > 0.2 ? 'Climbing' : telemetry.verticalSpeed < -0.2 ? 'Descending' : 'Airborne'
+  const activeControl = mode === 'controls'
+    ? pressedKeys.w || pressedKeys.s ? 'pitch' : pressedKeys.a || pressedKeys.d ? 'turn' : null
+    : null
 
   useEffect(() => {
     if (!('IntersectionObserver' in window)) return undefined
@@ -592,44 +617,153 @@ export function WrightLab() {
     }
   }, [time])
 
-  const beginControl = (control) => {
-    setMode('controls')
-    setActiveControl(control)
+  useEffect(() => {
+    const focusFrame = requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(focusFrame)
+  }, [])
+
+  const updateFlightKey = (code, pressed) => {
+    const key = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' }[code]
+    if (!key) return false
+    if (heldKeysRef.current[key] === pressed) return pressed
+    const next = { ...heldKeysRef.current, [key]: pressed }
+    heldKeysRef.current = next
+    inputRef.current = {
+      pitch: (next.w ? 1 : 0) - (next.s ? 1 : 0),
+      roll: (next.d ? 1 : 0) - (next.a ? 1 : 0),
+    }
+    setPressedKeys(next)
+    return true
   }
-  const endControl = (control) => setActiveControl((active) => active === control ? null : active)
+
+  const clearFlightKeys = () => {
+    heldKeysRef.current = { w: false, a: false, s: false, d: false }
+    inputRef.current = { pitch: 0, roll: 0 }
+    setPressedKeys({ w: false, a: false, s: false, d: false })
+  }
+
+  const handleKeyDown = (event) => {
+    if (event.target.matches('input, button, select, textarea, [contenteditable="true"]')) return
+    if (updateFlightKey(event.code, true)) event.preventDefault()
+  }
+
+  const handleControlPointerDown = (event, code) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    updateFlightKey(code, true)
+  }
+
+  const handleControlPointerUp = (event, code) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    updateFlightKey(code, false)
+  }
+
+  useEffect(() => {
+    const handleKeyUp = (event) => {
+      if (updateFlightKey(event.code, false)) event.preventDefault()
+    }
+    const handleWindowBlur = () => clearFlightKeys()
+    const handleVisibility = () => {
+      if (document.hidden) clearFlightKeys()
+    }
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleWindowBlur)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleWindowBlur)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
+
   const chooseMode = (nextMode) => {
-    setActiveControl(null)
     setMode(nextMode)
+    requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
   }
+
+  const restoreFlight = (nextStartMode) => {
+    flightStateRef.current = createFlyerState({ airborne: nextStartMode === 'airborne' })
+    simulationAccumulatorRef.current = 0
+    setTelemetry(flyerTelemetry(flightStateRef.current))
+  }
+
   const reset = () => {
-    setThrottle(72)
-    setPitch(5)
-    setWarp(0)
-    setYaw(0)
-    setActiveControl(null)
-    setResetSignal((signal) => signal + 1)
+    setThrottle(78)
+    clearFlightKeys()
+    restoreFlight(startMode)
+    requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
+  }
+
+  const chooseStartMode = (nextMode) => {
+    setStartMode(nextMode)
+    clearFlightKeys()
+    restoreFlight(nextMode)
+    requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
   }
 
   return (
     <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
-      <section className="demo-pane demo-pane--wright" aria-label="Interactive Wright Flyer model">
+      <section
+        ref={simulator}
+        className={`demo-pane demo-pane--wright flyer-simulator${simulatorFocused ? ' is-focused' : ''}`}
+        aria-label="Interactive Wright Flyer flight simulator"
+        aria-describedby="flyer-keyboard-description"
+        data-testid="flyer-simulator"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onFocus={(event) => {
+          const ownsFocus = event.target === event.currentTarget
+          setSimulatorFocused(ownsFocus)
+          if (!ownsFocus) clearFlightKeys()
+        }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setSimulatorFocused(false)
+            clearFlightKeys()
+          }
+        }}
+        onPointerDown={(event) => {
+          if (event.target.tagName === 'CANVAS') simulator.current?.focus({ preventScroll: true })
+        }}
+      >
+        <span id="flyer-keyboard-description" className="sr-only">Use W to pitch up, S to pitch down, A to bank left, and D to bank right. Release the keys to return the controls toward neutral.</span>
         <div className="scene-toolbar"><SceneBadge>{flightPhase} · {MODE_SHORT[mode]}</SceneBadge><ResetButton onClick={reset} /></div>
         <div className="scene-mode flyer-scene-mode" aria-label="Wright Flyer visualization mode">
-          <button type="button" className={mode === 'wings' ? 'is-active' : ''} onClick={() => chooseMode('wings')}>Wing forces</button>
-          <button type="button" className={mode === 'propulsion' ? 'is-active' : ''} onClick={() => chooseMode('propulsion')}>Propellers</button>
-          <button type="button" className={mode === 'controls' ? 'is-active' : ''} onClick={() => chooseMode('controls')}>Pilot controls</button>
+          <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => chooseMode('flight')}>Fly</button>
+          <button type="button" aria-pressed={mode === 'wings'} className={mode === 'wings' ? 'is-active' : ''} onClick={() => chooseMode('wings')}>Wing forces</button>
+          <button type="button" aria-pressed={mode === 'propulsion'} className={mode === 'propulsion' ? 'is-active' : ''} onClick={() => chooseMode('propulsion')}>Propellers</button>
+          <button type="button" aria-pressed={mode === 'controls'} className={mode === 'controls' ? 'is-active' : ''} onClick={() => chooseMode('controls')}>Pilot controls</button>
         </div>
         <div className="motion-reference" aria-label="Motion reference frame">
-          <span><small>Flyer heading</small><b>{String(Math.round(headingDegrees)).padStart(3, '0')}° · {speed.toFixed(1)} m/s</b></span>
-          <span><small>Flight path</small><b>{flightPath}</b></span>
+          <span data-testid="telemetry-heading" data-value={headingDegrees}><small>Flyer heading</small><b>{String(Math.round(headingDegrees)).padStart(3, '0')}° · {speed.toFixed(1)} m/s</b></span>
+          <span data-testid="telemetry-flight-path" data-value={telemetry.flightPathDegrees}><small>Flight path</small><b>{flightPath}</b></span>
         </div>
-        <Canvas camera={{ position: [8, 4.5, 8], fov: 44 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <FlyerScene throttle={throttle} pitch={pitch} warp={warp} yaw={yaw} liftRatio={liftRatio} lift={forces.lift} drag={forces.drag} thrust={thrust} mode={mode} altitude={telemetry.altitude} time={time} heading={telemetry.heading} trackX={telemetry.trackX} trackZ={telemetry.trackZ} activeControl={activeControl} />
+        <Canvas camera={{ position: [0, 5.5, 13], fov: 48, near: 0.1, far: 240 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
+          <FlyerScene throttle={throttle} inputRef={inputRef} stateRef={flightStateRef} simulationAccumulatorRef={simulationAccumulatorRef} telemetry={telemetry} onTelemetry={setTelemetry} liftRatio={liftRatio} mode={mode} time={time} activeControl={activeControl} />
         </Canvas>
+        <div className="flight-keys" aria-label="Flight controls">
+          {[
+            ['w', 'KeyW', 'Pitch up'],
+            ['a', 'KeyA', 'Bank left'],
+            ['s', 'KeyS', 'Pitch down'],
+            ['d', 'KeyD', 'Bank right'],
+          ].map(([key, code, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-label={`${label} (${key.toUpperCase()})`}
+              className={pressedKeys[key] ? 'is-active' : ''}
+              onPointerDown={(event) => handleControlPointerDown(event, code)}
+              onPointerUp={(event) => handleControlPointerUp(event, code)}
+              onPointerCancel={(event) => handleControlPointerUp(event, code)}
+              onLostPointerCapture={() => updateFlightKey(code, false)}
+            >{key.toUpperCase()}</button>
+          ))}
+        </div>
         <div className="instrument-cluster instrument-cluster--wright">
-          <div className="dial" style={{ '--needle': `${-110 + (speed / 25) * 220}deg` }}><i /><span>{Math.round(speed * 2.237)}</span><small>MPH</small></div>
-          <div className="attitude"><span style={{ transform: `rotate(${-telemetry.bank}deg) translateY(${pitch * 1.2}px)` }} /><b>HDG {String(Math.round(headingDegrees)).padStart(3, '0')}°</b></div>
-          <div className="altimeter"><span>{Math.round(altitudeFeet).toLocaleString()}</span><small>FEET</small><b>{flightPhase.toUpperCase()}</b></div>
+          <div className="dial" data-testid="telemetry-speed" data-value={speed} style={{ '--needle': `${-110 + (speed / 31) * 220}deg` }}><i /><span>{Math.round(speed * 2.237)}</span><small>MPH</small></div>
+          <div className="attitude" data-testid="telemetry-attitude" data-pitch={telemetry.pitchDegrees} data-bank={telemetry.bankDegrees}><span style={{ transform: `rotate(${-telemetry.bankDegrees}deg) translateY(${telemetry.pitchDegrees * 1.2}px)` }} /><b>HDG {String(Math.round(headingDegrees)).padStart(3, '0')}°</b></div>
+          <div className="altimeter" data-testid="telemetry-altitude" data-value={altitudeFeet}><span>{Math.round(altitudeFeet).toLocaleString()}</span><small>FEET · {telemetry.verticalSpeed >= 0 ? '+' : ''}{(telemetry.verticalSpeed * 196.85).toFixed(0)} FPM</small><b>{flightPhase.toUpperCase()}</b></div>
         </div>
       </section>
 
@@ -639,21 +773,19 @@ export function WrightLab() {
         </SectionHeader>
 
         <div className="control-group">
-          <div className="group-title"><span>Flyer controls</span><small>Change one system at a time</small></div>
+          <div className="group-title"><span>Flight setup</span><small>Propeller thrust</small></div>
+          <div className="flight-start-mode" aria-label="Starting position">
+            <button type="button" aria-pressed={startMode === 'airborne'} className={startMode === 'airborne' ? 'is-active' : ''} onClick={() => chooseStartMode('airborne')}><Plane size={15} /> In flight</button>
+            <button type="button" aria-pressed={startMode === 'takeoff'} className={startMode === 'takeoff' ? 'is-active' : ''} onClick={() => chooseStartMode('takeoff')}><PlaneTakeoff size={15} /> Takeoff run</button>
+          </div>
           <Slider label="Engine throttle" value={throttle} min={0} max={100} unit="%" onChange={setThrottle} />
-          <Slider label="Front elevator / pitch" value={pitch} min={-3} max={12} unit="°" onChange={(value) => { beginControl('pitch'); setPitch(value) }} accent="#6e4c9b"
-            onInteractionStart={() => beginControl('pitch')} onInteractionEnd={() => endControl('pitch')} />
-          <Slider label="Wing warp / roll" value={warp} min={-10} max={10} unit="°" onChange={(value) => { beginControl('warp'); setWarp(value) }} accent="#27829c"
-            onInteractionStart={() => beginControl('warp')} onInteractionEnd={() => endControl('warp')} />
-          <Slider label="Rear rudder / yaw" value={yaw} min={-12} max={12} unit="°" onChange={(value) => { beginControl('yaw'); setYaw(value) }} accent="#d85543"
-            onInteractionStart={() => beginControl('yaw')} onInteractionEnd={() => endControl('yaw')} />
         </div>
 
         <div className="metric-grid">
-          <Metric label="Lift" value={formatForce(forces.lift)} />
+          <Metric label="Lift" value={formatForce(telemetry.lift)} />
           <Metric label="Weight" value={formatForce(weight)} tone="blue" />
           <Metric label="Thrust" value={formatForce(thrust)} tone="yellow" />
-          <Metric label="Drag" value={formatForce(forces.drag)} tone="violet" />
+          <Metric label="Drag" value={formatForce(telemetry.drag)} tone="violet" />
           <Metric label="Airspeed" value={`${speed.toFixed(1)} m/s`} tone="blue" />
           <Metric label="Altitude" value={`${Math.round(altitudeFeet)} ft`} tone="yellow" />
         </div>
@@ -662,7 +794,7 @@ export function WrightLab() {
           <h2>How the two wings make lift</h2>
           <p className="body-copy">Each fabric-covered wing creates lower pressure above and higher pressure below. The blue and yellow points show those distributed surface forces; adding them across both wings produces the net lift arrow.</p>
           <Equation caption="The Flyer used a very large total wing area because its speed was low. Speed still matters twice because v is squared."
-            values={`½ × 1.225 × ${speed.toFixed(1)}² × 47.4 × ${forces.cl.toFixed(2)} = ${formatForce(forces.lift)}`}>
+            values={`½ × 1.225 × ${speed.toFixed(1)}² × ${FLYER_AREA} × ${telemetry.liftCoefficient.toFixed(2)} = ${formatForce(telemetry.lift)}`}>
             L = ½ ρ v² S C<sub>L</sub>
           </Equation>
           <Note>Drag has two main sources here: making lift tilts some aerodynamic force backward, while struts, wires, and the pilot also push directly against the air.</Note>
@@ -671,8 +803,8 @@ export function WrightLab() {
         <section className="lesson-section">
           <h2>Takeoff is a force contest</h2>
           <Equation caption="Net vertical force creates vertical acceleration. The simulation integrates that acceleration into climb rate and altitude every frame."
-            values={`(${formatForce(forces.lift)} − ${formatForce(weight)}) ÷ ${FLYER_MASS} kg = ${(telemetry.netVerticalForce / FLYER_MASS).toFixed(2)} m/s²`}>
-            a<sub>vertical</sub> = (L − mg) ÷ m
+            values={`(L cos ${Math.abs(telemetry.bankDegrees).toFixed(0)}° cos ${Math.abs(telemetry.flightPathDegrees).toFixed(0)}° + T sin ${telemetry.pitchDegrees.toFixed(0)}° − D sin ${telemetry.flightPathDegrees.toFixed(0)}° − W) ÷ ${FLYER_MASS} kg = ${(telemetry.netVerticalForce / FLYER_MASS).toFixed(2)} m/s²`}>
+            a<sub>vertical</sub> = (L<sub>vertical</sub> + T<sub>vertical</sub> − D<sub>vertical</sub> − W) ÷ m
           </Equation>
           <Note>Watch the speed build during the takeoff roll. When lift exceeds weight near cycling speed, the aircraft leaves the ground. Increase pitch to climb; reduce pitch until lift matches weight to hold altitude; reduce it further to descend.</Note>
         </section>
@@ -696,7 +828,7 @@ export function WrightLab() {
             <div className="mechanism-chain"><span>Hand lever</span><i>→</i><span>Control cables</span><i>→</i><span>Double canard tilts</span></div>
             <p>The pilot moved a lever to rotate the two fabric surfaces ahead of the wings. Their aerodynamic force acts far in front of the center of mass, creating a nose-up or nose-down moment. Nose-up pitch increases wing angle of attack and lift; nose-down pitch reduces it.</p>
             <Equation caption="A modest elevator force can rotate the aircraft because the forward outriggers give it a long lever arm."
-              values={`elevator command ${pitch}° · vertical speed ${telemetry.verticalSpeed >= 0 ? '+' : ''}${telemetry.verticalSpeed.toFixed(1)} m/s`}>
+              values={`elevator command ${telemetry.elevator.toFixed(1)}° · vertical speed ${telemetry.verticalSpeed >= 0 ? '+' : ''}${telemetry.verticalSpeed.toFixed(1)} m/s`}>
               τ<sub>pitch</sub> = F<sub>elevator</sub> × lever arm
             </Equation>
           </article>
@@ -706,7 +838,7 @@ export function WrightLab() {
             <div className="mechanism-chain"><span>Pilot shifts hips</span><i>→</i><span>Cables pull corners</span><i>→</i><span>Wing tips twist oppositely</span></div>
             <p>The pilot slid the cradle sideways. Cables increased the angle of attack at one pair of wing tips while decreasing it at the other, producing unequal lift and rolling the Flyer into a bank. Once banked, part of lift points sideways and bends the flight path into a turn. Holding the bank intentionally produces a circle; leveling the wings preserves the new heading.</p>
             <Equation caption="Differential lift across the wide span produces roll torque. Banking also reduces the upward share of lift, so pitch may be needed to hold altitude."
-              values={`warp ${warp}° · bank ${telemetry.bank.toFixed(1)}°`}>
+              values={`warp ${telemetry.warp.toFixed(1)}° · bank ${telemetry.bankDegrees.toFixed(1)}°`}>
               τ<sub>roll</sub> ≈ (L<sub>right</sub> − L<sub>left</sub>) × half-span
             </Equation>
           </article>
@@ -714,14 +846,14 @@ export function WrightLab() {
           <article className="control-mechanic control-mechanic--yaw">
             <header><span className="axis-chip axis-chip--yaw">YAW</span><h3>The linked twin rudders</h3></header>
             <div className="mechanism-chain"><span>Warp linkage</span><i>→</i><span>Twin rudders pivot</span><i>→</i><span>Tail force yaws nose</span></div>
-            <p>The two rear rudders redirected airflow sideways. On the 1903 Flyer they were linked to wing warping, helping the nose follow the bank and countering adverse yaw from the more strongly lifted wing. This lab separates the sliders so each contribution can be inspected.</p>
+            <p>The two rear rudders redirected airflow sideways. On the 1903 Flyer they were linked to wing warping, helping the nose follow the bank and countering adverse yaw from the more strongly lifted wing. The simulator preserves that linkage so a bank command also coordinates the rudders.</p>
             <Equation caption="The rudder's sideways force acts behind the center of mass. Its long tail arm turns the nose and changes the direction of ground flow."
-              values={`rudder ${yaw}° · heading ${String(Math.round(headingDegrees)).padStart(3, '0')}°`}>
+              values={`rudder ${telemetry.rudder.toFixed(1)}° · heading ${String(Math.round(headingDegrees)).padStart(3, '0')}°`}>
               τ<sub>yaw</sub> = F<sub>rudder</sub> × tail arm
             </Equation>
           </article>
 
-          <Note>A coordinated turn combines warp and rudder, then adds enough elevator to replace the vertical lift lost in the bank. The moving fields show the resulting heading rather than always scrolling straight back.</Note>
+          <Note>A coordinated turn combines warp and rudder, then adds enough elevator to replace the vertical lift lost in the bank. The aircraft and chase camera move through one world, so every field and fence keeps the same position relative to its neighbors.</Note>
         </section>
       </aside>
     </div>

@@ -20,6 +20,18 @@
 
 * { box-sizing: border-box; }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html, body, #root { min-height: 100%; margin: 0; }
 
 body { min-width: 320px; overflow-x: hidden; }
@@ -171,9 +183,56 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 .demo-pane canvas { display: block; cursor: grab; }
 .demo-pane canvas:active { cursor: grabbing; }
+.demo-pane--wright canvas,
+.demo-pane--wright canvas:active { cursor: default; }
 .demo-pane--wing { background: #f3e8d8; }
 .demo-pane--wright { background: #8dcedc; }
 .demo-pane--jet { background: #88cddd; }
+
+.flyer-simulator { outline: 0; }
+.flyer-simulator.is-focused { box-shadow: inset 0 0 0 2px #fff8e2, inset 0 0 0 5px #315964; }
+.flyer-simulator:focus:not(:focus-visible) { box-shadow: none; }
+
+.flight-keys {
+  position: absolute;
+  z-index: 3;
+  bottom: 24px;
+  left: 20px;
+  width: 92px;
+  height: 62px;
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  grid-template-rows: repeat(2, 28px);
+  gap: 4px;
+  pointer-events: none;
+}
+
+.flight-keys button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(41, 69, 75, .28);
+  border-radius: 4px;
+  background: rgba(255, 249, 235, .92);
+  box-shadow: 2px 3px 0 rgba(46, 62, 68, .22);
+  color: #315964;
+  cursor: pointer;
+  font: 600 .66rem 'DM Mono', monospace;
+  touch-action: none;
+  pointer-events: auto;
+  transition: transform .08s ease, color .08s ease, background-color .08s ease, box-shadow .08s ease;
+}
+
+.flight-keys button:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+.flight-keys button:nth-of-type(2) { grid-column: 1; grid-row: 2; }
+.flight-keys button:nth-of-type(3) { grid-column: 2; grid-row: 2; }
+.flight-keys button:nth-of-type(4) { grid-column: 3; grid-row: 2; }
+.flight-keys button.is-active {
+  transform: translate(2px, 2px);
+  background: #e85b47;
+  box-shadow: 0 1px 0 rgba(46, 62, 68, .2);
+  color: white;
+}
 
 .lab-layout--painted-notes .demo-pane::after {
   content: '';
@@ -351,6 +410,8 @@ body[data-flight-time='night'] .lab-tabs button.is-active { color: #ff9187; }
 }
 
 .scene-mode button.is-active { background: #315964; color: white; }
+.flyer-scene-mode { grid-template-columns: repeat(4, 1fr); }
+.flyer-scene-mode button { min-width: 78px; }
 
 .motion-reference {
   position: absolute;
@@ -556,6 +617,34 @@ body[data-flight-time='night'] .lab-tabs button.is-active { color: #ff9187; }
 .group-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .group-title span { color: #354e53; font: 700 .77rem 'DM Mono', monospace; text-transform: uppercase; }
 .group-title small { color: #8a8179; font-size: .68rem; }
+
+.flight-start-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border: 1px solid #d8cbbb;
+  background: #f2eadf;
+}
+
+.flight-start-mode button {
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #647477;
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.flight-start-mode button.is-active { background: #315964; color: white; }
+.lab-layout--time-night .flight-start-mode { border-color: #526989; background: #1b2d48; }
+.lab-layout--time-night .flight-start-mode button { color: #afc0d3; }
+.lab-layout--time-night .flight-start-mode button.is-active { background: #e65a45; color: white; }
 
 .slider-control { display: grid; gap: 10px; }
 .control-label { display: flex; align-items: center; justify-content: space-between; font-size: .77rem; font-weight: 600; }
@@ -873,6 +962,12 @@ input[type='range']::-moz-range-thumb {
 .system-icon--engines { border-radius: 50%; background: var(--yellow); }
 .system-icon--sweep { background: var(--blue-deep); }
 
+@media (max-width: 1180px) {
+  .demo-pane--wright .flyer-scene-mode { top: 57px; }
+  .demo-pane--wright .motion-reference { top: 101px; }
+  .demo-pane--wright .flight-keys { bottom: 150px; }
+}
+
 @media (max-width: 980px) {
   .lab-layout { grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); }
   .lesson-pane { padding: 34px 28px 60px; }
@@ -897,6 +992,7 @@ input[type='range']::-moz-range-thumb {
   .lesson-pane { padding: 32px 20px 58px; }
   .lesson-heading h1 { font-size: 2rem; }
   .instrument-cluster { height: 88px; grid-template-columns: 88px minmax(120px, 160px) 88px; gap: 7px; }
+  .flight-keys { bottom: 108px; left: 12px; }
   .dial small, .altimeter small { bottom: 12px; }
   .demo-pane--wing .force-legend { display: none; }
   .drag-callout { display: none; }
@@ -929,6 +1025,7 @@ input[type='range']::-moz-range-thumb {
   .hud-strip small { font-size: .48rem; }
   .hud-strip b { font-size: .62rem; }
   .instrument-cluster { right: 10px; bottom: 10px; left: 10px; height: 76px; grid-template-columns: 76px minmax(100px, 130px) 76px; }
+  .flight-keys { bottom: 96px; transform: scale(.88); transform-origin: left bottom; }
   .dial span, .altimeter span { font-size: .68rem; }
   .dial small, .altimeter small { font-size: .4rem; bottom: 10px; }
   .attitude b, .altimeter b { bottom: 6px; font-size: .42rem; }
