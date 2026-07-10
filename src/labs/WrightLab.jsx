@@ -11,7 +11,7 @@ const MODE_SHORT = { wings: 'WING FORCES', propulsion: 'PROPULSION', controls: '
 const FLYER_MASS = 340
 const FLYER_AREA = 47.4
 const MAX_LAB_ALTITUDE = 304.8
-const INITIAL_TELEMETRY = { speed: 0, altitude: 0, verticalSpeed: 0, netVerticalForce: -FLYER_MASS * GRAVITY, heading: 0, bank: 0 }
+const INITIAL_TELEMETRY = { speed: 0, altitude: 0, verticalSpeed: 0, netVerticalForce: -FLYER_MASS * GRAVITY, heading: 0, bank: 0, turnRate: 0 }
 const WRIGHT_ATMOSPHERE = {
   day: { sky: '#8dcedc', fog: '#8dcedc', cloud: '#fff9ed', ground: '#e8b47d' },
   evening: { sky: '#a496c9', fog: '#c7a3bf', cloud: '#efd5e7', ground: '#b88dac', fields: ['#c7a6d6', '#db91aa', '#8fa6bc', '#e5b078', '#9a8fc1'] },
@@ -116,7 +116,8 @@ function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
     let lastTime = performance.now()
     let lastPublish = 0
     const tick = (now) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.1) * 6.5
+      const realDt = Math.min((now - lastTime) / 1000, 0.1)
+      const dt = realDt * 6.5
       lastTime = now
       const current = controls.current
       const forces = flightForces({ speed: state.speed, area: FLYER_AREA, angle: current.pitch, dragCoefficient: 0.055, flapBoost: 0.28 })
@@ -133,10 +134,12 @@ function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
       state.verticalSpeed = clamp((state.verticalSpeed + verticalAcceleration * dt) * Math.exp(-0.08 * dt), -12, 15)
       state.altitude += state.verticalSpeed * dt
 
+      let turnRate = 0
       if (state.altitude > 0.05 && state.speed > 4) {
         const coordinatedTurn = (GRAVITY * Math.tan((bank * Math.PI) / 180)) / state.speed
         const rudderTurn = ((current.yaw * Math.PI) / 180) * 0.08
-        state.heading += (coordinatedTurn * 0.22 + rudderTurn) * dt
+        turnRate = clamp(coordinatedTurn + rudderTurn, -0.45, 0.45)
+        state.heading += turnRate * realDt
         state.heading = Math.atan2(Math.sin(state.heading), Math.cos(state.heading))
       }
 
@@ -150,7 +153,7 @@ function useFlyerSimulation(throttle, pitch, warp, yaw, resetSignal) {
       }
 
       if (now - lastPublish > 55) {
-        setTelemetry({ ...state, netVerticalForce, bank })
+        setTelemetry({ ...state, netVerticalForce, bank, turnRate })
         lastPublish = now
       }
       frame = requestAnimationFrame(tick)
@@ -413,25 +416,36 @@ function KineticLandscape({ speed, altitude, time, heading }) {
   const moving = useRef()
   const fence = useRef()
   const streaks = useRef()
+  const previousHeading = useRef(heading)
 
   useFrame((_, delta) => {
-    const moveAndWrap = (group, rate, alignToHeading = false) => {
+    const headingDelta = Math.atan2(
+      Math.sin(heading - previousHeading.current),
+      Math.cos(heading - previousHeading.current),
+    )
+    previousHeading.current = heading
+    const rotation = -headingDelta
+    const cosine = Math.cos(rotation)
+    const sine = Math.sin(rotation)
+
+    const moveAndWrap = (group, rate, orientationAxis) => {
       if (!group.current) return
-      const shiftX = -Math.sin(heading) * speed * delta * rate
-      const shiftZ = Math.cos(heading) * speed * delta * rate
       group.current.children.forEach((child) => {
-        child.position.x += shiftX
-        child.position.z += shiftZ
+        const rotatedX = child.position.x * cosine - child.position.z * sine
+        const rotatedZ = child.position.x * sine + child.position.z * cosine
+        child.position.x = rotatedX
+        child.position.z = rotatedZ + speed * delta * rate
         if (child.position.x > 21) child.position.x -= 42
         if (child.position.x < -21) child.position.x += 42
         if (child.position.z > 21) child.position.z -= 42
         if (child.position.z < -21) child.position.z += 42
-        if (alignToHeading) child.rotation.y = -heading
+        if (orientationAxis === 'y') child.rotation.y += rotation
+        if (orientationAxis === 'z') child.rotation.z += rotation
       })
     }
-    moveAndWrap(moving, 0.54)
-    moveAndWrap(fence, 0.72)
-    moveAndWrap(streaks, 1.05, true)
+    moveAndWrap(moving, 0.54, 'z')
+    moveAndWrap(fence, 0.72, 'y')
+    moveAndWrap(streaks, 1.05, 'y')
   })
 
   const shadowOpacity = clamp(0.32 - altitude * 0.007, 0.07, 0.32)
@@ -484,7 +498,8 @@ function FlyerScene({ throttle, pitch, warp, yaw, liftRatio, lift, drag, thrust,
     if (!plane.current) return
     plane.current.position.y += (targetY - plane.current.position.y) * 0.08
     plane.current.rotation.x = (-pitch * Math.PI) / 360
-    plane.current.rotation.z = (-warp * 2.4 * Math.PI) / 180
+    const airborneBank = clamp(altitude / 5, 0, 1)
+    plane.current.rotation.z = (-warp * 2.4 * Math.PI) / 180 * airborneBank
     plane.current.rotation.y = (yaw * Math.PI) / 360
   })
   return (
@@ -547,6 +562,7 @@ export function WrightLab() {
   const propwashMassFlow = thrust / propwashDeltaV
   const altitudeFeet = telemetry.altitude * 3.28084
   const headingDegrees = (telemetry.heading * 180 / Math.PI + 360) % 360
+  const flightPath = telemetry.turnRate > 0.015 ? 'CURVING RIGHT ↷' : telemetry.turnRate < -0.015 ? 'CURVING LEFT ↶' : 'STRAIGHT AHEAD'
   const flightPhase = telemetry.altitude >= MAX_LAB_ALTITUDE - 0.1 ? 'At 1,000 ft ceiling'
     : telemetry.altitude < 0.05
     ? forces.lift >= weight ? 'Lifting off' : speed < 8 ? 'Takeoff roll' : 'Building lift'
@@ -604,8 +620,8 @@ export function WrightLab() {
           <button type="button" className={mode === 'controls' ? 'is-active' : ''} onClick={() => chooseMode('controls')}>Pilot controls</button>
         </div>
         <div className="motion-reference" aria-label="Motion reference frame">
-          <span><small>Flyer motion</small><b>{speed.toFixed(1)} m/s →</b></span>
-          <span><small>Ground &amp; air</small><b>← {speed.toFixed(1)} m/s</b></span>
+          <span><small>Flyer heading</small><b>{String(Math.round(headingDegrees)).padStart(3, '0')}° · {speed.toFixed(1)} m/s</b></span>
+          <span><small>Flight path</small><b>{flightPath}</b></span>
         </div>
         <Canvas camera={{ position: [8, 4.5, 8], fov: 44 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
           <FlyerScene throttle={throttle} pitch={pitch} warp={warp} yaw={yaw} liftRatio={liftRatio} lift={forces.lift} drag={forces.drag} thrust={thrust} mode={mode} speed={speed} altitude={telemetry.altitude} time={time} heading={telemetry.heading} activeControl={activeControl} />
@@ -688,7 +704,7 @@ export function WrightLab() {
           <article className="control-mechanic control-mechanic--warp">
             <header><span className="axis-chip axis-chip--roll">ROLL</span><h3>Wing warping and the hip cradle</h3></header>
             <div className="mechanism-chain"><span>Pilot shifts hips</span><i>→</i><span>Cables pull corners</span><i>→</i><span>Wing tips twist oppositely</span></div>
-            <p>The pilot slid the cradle sideways. Cables increased the angle of attack at one pair of wing tips while decreasing it at the other, producing unequal lift and rolling the Flyer into a bank. Once banked, part of lift points sideways and bends the flight path into a turn.</p>
+            <p>The pilot slid the cradle sideways. Cables increased the angle of attack at one pair of wing tips while decreasing it at the other, producing unequal lift and rolling the Flyer into a bank. Once banked, part of lift points sideways and bends the flight path into a turn. Holding the bank intentionally produces a circle; leveling the wings preserves the new heading.</p>
             <Equation caption="Differential lift across the wide span produces roll torque. Banking also reduces the upward share of lift, so pitch may be needed to hold altitude."
               values={`warp ${warp}° · bank ${telemetry.bank.toFixed(1)}°`}>
               τ<sub>roll</sub> ≈ (L<sub>right</sub> − L<sub>left</sub>) × half-span
