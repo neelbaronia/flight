@@ -302,6 +302,19 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   text-transform: uppercase;
 }
 
+.direct-control-dial__badge {
+  position: absolute;
+  z-index: 4;
+  top: -3px;
+  right: -1px;
+  padding: 2px 3px;
+  border: 1px solid #fff1d7;
+  background: #e65a45;
+  color: white;
+  font: normal 600 .37rem 'DM Mono', monospace;
+  pointer-events: none;
+}
+
 .direct-control-dial input[type='range'] {
   position: absolute;
   z-index: 3;
@@ -989,16 +1002,27 @@ input[type='range']::-moz-range-thumb {
   text-align: center;
 }
 
+.mechanism-chain span b {
+  display: block;
+  margin-bottom: 3px;
+  color: #9f5146;
+  font-size: .48rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 .mechanism-chain i { align-self: center; color: #c06152; font: normal 700 .9rem 'DM Mono', monospace; }
 
 .control-exploded {
   position: relative;
-  height: 154px;
+  height: 218px;
   margin-top: 12px;
   overflow: hidden;
   border: 1px solid #c7b8a9;
   border-left: 4px solid var(--exploded-accent);
-  background: #e7f1ed;
+  background:
+    linear-gradient(rgba(255,255,255,.28), rgba(255,255,255,0) 48%),
+    #e7f1ed;
 }
 
 .control-exploded--pitch { --exploded-accent: #76569b; }
@@ -1006,30 +1030,109 @@ input[type='range']::-moz-range-thumb {
 .control-exploded--yaw { --exploded-accent: #e65a45; }
 .control-exploded canvas { display: block; }
 
-.control-exploded > span {
+.control-exploded__orientation,
+.control-exploded__stages,
+.control-exploded__readout {
   position: absolute;
-  right: 8px;
-  bottom: 7px;
-  left: 8px;
+  z-index: 2;
+  pointer-events: none;
+  font-family: 'DM Mono', monospace;
+}
+
+.control-exploded__orientation {
+  top: 7px;
+  right: 9px;
+  left: 9px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  pointer-events: none;
+  gap: 8px;
   color: #315964;
-  font: 500 .55rem 'DM Mono', monospace;
+  font-size: .46rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
-.control-exploded > span b { font-weight: 500; }
-.control-exploded > span output { padding: 3px 5px; background: #fff8ec; color: var(--exploded-accent); }
+.control-exploded__orientation span:last-child { color: #8a8179; }
+
+.control-exploded__stages {
+  top: 29px;
+  right: 9px;
+  left: 9px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.control-exploded__stages span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 5px;
+  border: 1px solid color-mix(in srgb, var(--exploded-accent) 28%, #b9c5c0);
+  background: rgba(255, 251, 240, .84);
+  color: #40585d;
+  font-size: .43rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.control-exploded__stages i {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--exploded-accent);
+  color: white;
+  font-size: .42rem;
+  font-style: normal;
+}
+
+.control-exploded__readout {
+  right: 9px;
+  bottom: 7px;
+  left: 9px;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  color: #315964;
+  font-size: .52rem;
+}
+
+.control-exploded__readout b { font-weight: 600; }
+.control-exploded__readout i { color: var(--exploded-accent); font-style: normal; }
+.control-exploded__readout span { color: #617477; }
+.control-exploded__readout output { padding: 3px 5px; background: #fff8ec; color: var(--exploded-accent); }
+
+.control-exploded__lab-badge {
+  position: absolute;
+  z-index: 2;
+  right: 9px;
+  bottom: 32px;
+  padding: 3px 5px;
+  background: #e65a45;
+  color: white;
+  font: 600 .43rem 'DM Mono', monospace;
+  pointer-events: none;
+}
 .lab-layout--time-night .control-mechanic { border-top-color: #40536f; }
 .lab-layout--time-night .control-mechanic h3 { color: #eef4fb; }
 .lab-layout--time-night .control-mechanic > p { color: #afc0d3; }
 .lab-layout--time-night .mechanism-chain span { color: #dce7f3; border-color: #526989; background: #233653; }
+.lab-layout--time-night .mechanism-chain span b { color: #f29b9b; }
 .lab-layout--time-night .mechanism-chain i { color: #f29b9b; }
 .lab-layout--time-night .control-exploded { border-color: #526989; background: #1a2f4c; }
-.lab-layout--time-night .control-exploded > span { color: #dce7f3; }
-.lab-layout--time-night .control-exploded > span output { background: #233653; }
+.lab-layout--time-night .control-exploded__orientation,
+.lab-layout--time-night .control-exploded__readout { color: #dce7f3; }
+.lab-layout--time-night .control-exploded__orientation span:last-child,
+.lab-layout--time-night .control-exploded__readout span { color: #afc0d3; }
+.lab-layout--time-night .control-exploded__stages span { color: #dce7f3; border-color: #526989; background: rgba(35, 54, 83, .9); }
+.lab-layout--time-night .control-exploded__readout output { background: #233653; }
 
 .instrument-cluster {
   position: absolute;
@@ -1156,6 +1259,14 @@ input[type='range']::-moz-range-thumb {
   .camber-chain { grid-template-columns: 1fr; }
   .camber-chain span { min-height: 40px; }
   .camber-chain i { height: 18px; transform: rotate(90deg); }
+  .mechanism-chain { grid-template-columns: 1fr; gap: 4px; }
+  .mechanism-chain span { min-height: 40px; }
+  .mechanism-chain i { height: 14px; justify-self: center; transform: rotate(90deg); }
+  .control-exploded { height: 200px; }
+  .control-exploded__orientation { font-size: .4rem; }
+  .control-exploded__stages { gap: 4px; }
+  .control-exploded__stages span { padding: 4px 3px; font-size: .38rem; }
+  .control-exploded__readout { gap: 5px; font-size: .45rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
