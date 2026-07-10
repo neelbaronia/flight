@@ -1,7 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Billboard, Line, Stars, Text } from '@react-three/drei'
 import { Plane, PlaneTakeoff } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
@@ -581,23 +581,132 @@ function FlyerScene({ throttle, inputRef, stateRef, simulationAccumulatorRef, ca
   )
 }
 
+function DirectControlDial({ label, value, maxDegrees, accent, onChange }) {
+  const commandDegrees = value * maxDegrees
+  const displayAngle = value * 112
+  return (
+    <label className="direct-control-dial" style={{ '--control-accent': accent, '--control-angle': `${displayAngle}deg` }}>
+      <span className="direct-control-dial__face"><i /><b>{commandDegrees >= 0 ? '+' : ''}{commandDegrees.toFixed(0)}°</b></span>
+      <span className="direct-control-dial__label">{label}</span>
+      <input
+        type="range"
+        min="-100"
+        max="100"
+        step="1"
+        value={Math.round(value * 100)}
+        aria-label={`${label} control`}
+        aria-valuetext={`${commandDegrees.toFixed(1)} degrees`}
+        onChange={(event) => onChange(Number(event.target.value) / 100)}
+        onDoubleClick={() => onChange(0)}
+      />
+    </label>
+  )
+}
+
+function ExplodedControlModel({ type, value }) {
+  const radians = value * Math.PI / 180
+  const fabric = '#f2cf67'
+  const frame = '#94503d'
+
+  if (type === 'pitch') {
+    const deflection = -radians * 1.7
+    return (
+      <group rotation={[-0.18, 0.42, 0]}>
+        <Beam from={[-1.75, 0, 0]} to={[1.75, 0, 0]} radius={0.025} color={frame} />
+        {[-0.48, 0.48].map((y) => (
+          <group key={y} position={[0, y, 0]} rotation={[deflection, 0, 0]}>
+            <mesh castShadow><boxGeometry args={[2.8, 0.07, 0.72]} /><meshStandardMaterial color={fabric} roughness={0.9} /></mesh>
+            {[-1.2, 0, 1.2].map((x) => <Line key={x} points={[[x, 0.05, -0.34], [x, 0.05, 0.34]]} color="#b8684c" lineWidth={1} />)}
+          </group>
+        ))}
+        <Line points={[[1.72, 0, 0], [2.18, 0.62, 0.46]]} color="#76569b" lineWidth={2.4} />
+        <Line points={[[1.72, 0, 0], [2.18, -0.62, 0.46]]} color="#76569b" lineWidth={2.4} />
+      </group>
+    )
+  }
+
+  if (type === 'roll') {
+    const twist = radians * 1.8
+    return (
+      <group rotation={[-0.2, 0.34, 0]}>
+        {[-0.34, 0.34].flatMap((y) => [-1, 1].map((side) => (
+          <group key={`${y}-${side}`} position={[side * 1.12, y, 0]} rotation={[side * twist, 0, 0]}>
+            <mesh castShadow><boxGeometry args={[1.85, 0.065, 0.88]} /><meshStandardMaterial color={fabric} roughness={0.9} /></mesh>
+            <Line points={[[side * -0.82, 0.05, -0.4], [side * 0.82, 0.05, -0.4]]} color="#27829c" lineWidth={2} />
+          </group>
+        )))}
+        {[-0.72, 0.72].map((x) => <Beam key={x} from={[x, -0.38, 0]} to={[x, 0.38, 0]} radius={0.022} color={frame} />)}
+        <Line points={[[-1.95, -0.55, 0.48], [0, -0.9, 0.65], [1.95, 0.55, 0.48]]} color="#27829c" lineWidth={2.2} />
+      </group>
+    )
+  }
+
+  const rudderDeflection = radians * 2.6
+  return (
+    <group rotation={[-0.12, 0.38, 0]}>
+      {[-0.62, 0.62].map((x) => (
+        <group key={x} position={[x, 0, 0]} rotation={[0, rudderDeflection, 0]}>
+          <mesh castShadow><boxGeometry args={[0.075, 1.55, 0.76]} /><meshStandardMaterial color={fabric} roughness={0.92} /></mesh>
+          <Line points={[[0, -0.7, -0.34], [0, 0.7, -0.34]]} color="#e65a45" lineWidth={2.2} />
+        </group>
+      ))}
+      <Beam from={[-1.12, -0.72, 0]} to={[1.12, -0.72, 0]} radius={0.025} color={frame} />
+      <Beam from={[-1.12, 0.72, 0]} to={[1.12, 0.72, 0]} radius={0.025} color={frame} />
+      <Line points={[[0, 0, 0.58], [0, 0, 1.35]]} color="#76569b" lineWidth={2.2} />
+    </group>
+  )
+}
+
+function ControlExplodedView({ type, value }) {
+  const labels = { pitch: 'ELEVATOR', roll: 'OPPOSITE WING TWIST', yaw: 'TWIN RUDDERS' }
+  const container = useRef()
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined')
+
+  useEffect(() => {
+    if (!container.current) return undefined
+    if (!('IntersectionObserver' in window)) return undefined
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '64px 0px', threshold: 0.01 })
+    observer.observe(container.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={container} className={`control-exploded control-exploded--${type}`} role="img" aria-label={`${labels[type]} exploded view at ${value.toFixed(1)} degrees`}>
+      {visible && (
+        <Canvas orthographic camera={{ position: [4, 3, 5], zoom: 62 }} frameloop="demand" dpr={[1, 1.5]}>
+          <ambientLight intensity={1.8} />
+          <directionalLight position={[4, 6, 5]} intensity={2.1} color="#fff7e8" />
+          <directionalLight position={[-4, 1, -3]} intensity={0.7} color="#a8d7df" />
+          <ExplodedControlModel type={type} value={value} />
+        </Canvas>
+      )}
+      <span><b>{labels[type]}</b><output>{value >= 0 ? '+' : ''}{value.toFixed(1)}°</output></span>
+    </div>
+  )
+}
+
 export function WrightLab() {
-  const [throttle, setThrottle] = useState(78)
+  const [throttle, setThrottle] = useState(82)
   const [startMode, setStartMode] = useState('airborne')
   const [mode, setMode] = useState('flight')
+  const [inspectionControl, setInspectionControl] = useState(null)
+  const [directControls, setDirectControls] = useState({ pitch: 0, roll: 0, yaw: 0 })
   const [telemetry, setTelemetry] = useState(INITIAL_TELEMETRY)
   const [pressedKeys, setPressedKeys] = useState({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
   const [simulatorFocused, setSimulatorFocused] = useState(false)
   const simulator = useRef()
-  const inputRef = useRef({ pitch: 0, roll: 0, viewAzimuth: 0, viewElevation: 0 })
+  const inputRef = useRef({ pitch: 0, roll: 0, yaw: 0, viewAzimuth: 0, viewElevation: 0 })
   const heldKeysRef = useRef({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
+  const directControlsRef = useRef({ pitch: 0, roll: 0, yaw: 0 })
   const flightStateRef = useRef(createFlyerState({ airborne: true }))
   const simulationAccumulatorRef = useRef(0)
   const cameraViewRef = useRef(createCameraView())
   const time = useTimeOfDay()
   const wingSection = useRef()
   const propulsionSection = useRef()
-  const controlsSection = useRef()
+  const pitchMechanic = useRef()
+  const rollMechanic = useRef()
+  const yawMechanic = useRef()
   const lastAutoMode = useRef(null)
   const speed = telemetry.speed
   const weight = FLYER_WEIGHT
@@ -614,20 +723,26 @@ export function WrightLab() {
     ? telemetry.lift >= weight ? 'Lifting off' : speed < 8 ? 'Takeoff roll' : 'Building lift'
     : telemetry.verticalSpeed > 0.2 ? 'Climbing' : telemetry.verticalSpeed < -0.2 ? 'Descending' : 'Airborne'
   const activeControl = mode === 'controls'
-    ? pressedKeys.w || pressedKeys.s ? 'pitch' : pressedKeys.a || pressedKeys.d ? 'turn' : null
+    ? pressedKeys.w || pressedKeys.s ? 'pitch' : pressedKeys.a || pressedKeys.d ? 'turn' : inspectionControl
     : null
 
   useEffect(() => {
     if (!('IntersectionObserver' in window)) return undefined
-    const sections = [wingSection.current, propulsionSection.current, controlsSection.current].filter(Boolean)
+    const sections = [wingSection.current, propulsionSection.current, pitchMechanic.current, rollMechanic.current, yawMechanic.current].filter(Boolean)
+    const visibility = new Map(sections.map((section) => [section, 0]))
     const observer = new IntersectionObserver((entries) => {
-      const active = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      if (active) {
-        const nextMode = active.target.dataset.sceneMode
-        if (lastAutoMode.current !== nextMode) {
-          lastAutoMode.current = nextMode
-          setMode(nextMode)
-        }
+      entries.forEach((entry) => visibility.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0))
+      const active = sections
+        .map((target) => ({ target, intersectionRatio: visibility.get(target) || 0 }))
+        .filter((entry) => entry.intersectionRatio > 0)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      const nextMode = active?.target.dataset.sceneMode || 'flight'
+      const nextControl = active?.target.dataset.activeControl || null
+      const nextAutoMode = `${nextMode}:${nextControl || ''}`
+      if (lastAutoMode.current !== nextAutoMode) {
+        lastAutoMode.current = nextAutoMode
+        setMode(nextMode)
+        setInspectionControl(nextControl)
       }
     }, { threshold: [0.01, 0.25], rootMargin: '-22% 0px -44% 0px' })
     sections.forEach((section) => observer.observe(section))
@@ -646,7 +761,17 @@ export function WrightLab() {
     return () => cancelAnimationFrame(focusFrame)
   }, [])
 
-  const updateFlightKey = (code, pressed) => {
+  const syncControlInputs = useCallback((keys = heldKeysRef.current, dials = directControlsRef.current) => {
+    inputRef.current = {
+      pitch: clamp((keys.w ? 1 : 0) - (keys.s ? 1 : 0) + dials.pitch, -1, 1),
+      roll: clamp((keys.d ? 1 : 0) - (keys.a ? 1 : 0) + dials.roll, -1, 1),
+      yaw: clamp(dials.yaw, -1, 1),
+      viewAzimuth: (keys.viewRight ? 1 : 0) - (keys.viewLeft ? 1 : 0),
+      viewElevation: (keys.viewUp ? 1 : 0) - (keys.viewDown ? 1 : 0),
+    }
+  }, [])
+
+  const updateFlightKey = useCallback((code, pressed) => {
     const key = {
       KeyW: 'w',
       KeyA: 'a',
@@ -661,20 +786,31 @@ export function WrightLab() {
     if (heldKeysRef.current[key] === pressed) return pressed
     const next = { ...heldKeysRef.current, [key]: pressed }
     heldKeysRef.current = next
-    inputRef.current = {
-      pitch: (next.w ? 1 : 0) - (next.s ? 1 : 0),
-      roll: (next.d ? 1 : 0) - (next.a ? 1 : 0),
-      viewAzimuth: (next.viewRight ? 1 : 0) - (next.viewLeft ? 1 : 0),
-      viewElevation: (next.viewUp ? 1 : 0) - (next.viewDown ? 1 : 0),
-    }
+    syncControlInputs(next)
     setPressedKeys(next)
     return true
+  }, [syncControlInputs])
+
+  const clearFlightKeys = useCallback(() => {
+    heldKeysRef.current = { w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false }
+    syncControlInputs(heldKeysRef.current)
+    setPressedKeys({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
+  }, [syncControlInputs])
+
+  const updateDirectControl = (control, value) => {
+    const next = { ...directControlsRef.current, [control]: clamp(value, -1, 1) }
+    directControlsRef.current = next
+    setDirectControls(next)
+    syncControlInputs(heldKeysRef.current, next)
+    setMode('controls')
+    setInspectionControl(control === 'roll' ? 'turn' : control)
   }
 
-  const clearFlightKeys = () => {
-    heldKeysRef.current = { w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false }
-    inputRef.current = { pitch: 0, roll: 0, viewAzimuth: 0, viewElevation: 0 }
-    setPressedKeys({ w: false, a: false, s: false, d: false, viewUp: false, viewDown: false, viewLeft: false, viewRight: false })
+  const resetDirectControls = () => {
+    const next = { pitch: 0, roll: 0, yaw: 0 }
+    directControlsRef.current = next
+    setDirectControls(next)
+    syncControlInputs(heldKeysRef.current, next)
   }
 
   const handleKeyDown = (event) => {
@@ -709,10 +845,11 @@ export function WrightLab() {
       window.removeEventListener('blur', handleWindowBlur)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [])
+  }, [clearFlightKeys, updateFlightKey])
 
   const chooseMode = (nextMode) => {
     setMode(nextMode)
+    setInspectionControl(null)
     requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
   }
 
@@ -724,8 +861,9 @@ export function WrightLab() {
   }
 
   const reset = () => {
-    setThrottle(78)
+    setThrottle(82)
     clearFlightKeys()
+    resetDirectControls()
     restoreFlight(startMode)
     requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
   }
@@ -733,6 +871,7 @@ export function WrightLab() {
   const chooseStartMode = (nextMode) => {
     setStartMode(nextMode)
     clearFlightKeys()
+    resetDirectControls()
     restoreFlight(nextMode)
     requestAnimationFrame(() => simulator.current?.focus({ preventScroll: true }))
   }
@@ -745,6 +884,8 @@ export function WrightLab() {
         aria-label="Interactive Wright Flyer flight simulator"
         aria-describedby="flyer-keyboard-description"
         data-testid="flyer-simulator"
+        data-scene-mode={mode}
+        data-active-control={activeControl || ''}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onFocus={(event) => {
@@ -795,6 +936,11 @@ export function WrightLab() {
               onLostPointerCapture={() => updateFlightKey(code, false)}
             >{key.toUpperCase()}</button>
           ))}
+        </div>
+        <div className="direct-flight-controls" aria-label="Direct flight controls">
+          <DirectControlDial label="Pitch" value={directControls.pitch} maxDegrees={12} accent="#76569b" onChange={(value) => updateDirectControl('pitch', value)} />
+          <DirectControlDial label="Roll" value={directControls.roll} maxDegrees={10} accent="#27829c" onChange={(value) => updateDirectControl('roll', value)} />
+          <DirectControlDial label="Yaw" value={directControls.yaw} maxDegrees={11} accent="#e65a45" onChange={(value) => updateDirectControl('yaw', value)} />
         </div>
         <div className="instrument-cluster instrument-cluster--wright">
           <div className="dial" data-testid="telemetry-speed" data-value={speed} style={{ '--needle': `${-110 + (speed / 31) * 220}deg` }}><i /><span>{Math.round(speed * 2.237)}</span><small>MPH</small></div>
@@ -855,13 +1001,14 @@ export function WrightLab() {
           <Note>The two propellers rotated in opposite directions. That cancelled much of their twisting reaction so the fragile aircraft did not roll from engine torque.</Note>
         </section>
 
-        <section ref={controlsSection} data-scene-mode="controls" className="lesson-section control-mechanics">
+        <section className="lesson-section control-mechanics">
           <h2>Three motions, three mechanisms</h2>
           <p className="body-copy">The Flyer did not have a modern control wheel. A hand lever and a sliding hip cradle pulled cables through its open wooden frame.</p>
 
-          <article className="control-mechanic control-mechanic--pitch">
+          <article ref={pitchMechanic} data-scene-mode="controls" data-active-control="pitch" className="control-mechanic control-mechanic--pitch">
             <header><span className="axis-chip axis-chip--pitch">PITCH</span><h3>The forward elevator</h3></header>
             <div className="mechanism-chain"><span>Hand lever</span><i>→</i><span>Control cables</span><i>→</i><span>Double canard tilts</span></div>
+            <ControlExplodedView type="pitch" value={telemetry.elevator} />
             <p>The pilot moved a lever to rotate the two fabric surfaces ahead of the wings. Their aerodynamic force acts far in front of the center of mass, creating a nose-up or nose-down moment. Nose-up pitch increases wing angle of attack and lift; nose-down pitch reduces it.</p>
             <Equation caption="A modest elevator force can rotate the aircraft because the forward outriggers give it a long lever arm."
               values={`elevator command ${telemetry.elevator.toFixed(1)}° · vertical speed ${telemetry.verticalSpeed >= 0 ? '+' : ''}${telemetry.verticalSpeed.toFixed(1)} m/s`}>
@@ -869,9 +1016,10 @@ export function WrightLab() {
             </Equation>
           </article>
 
-          <article className="control-mechanic control-mechanic--warp">
+          <article ref={rollMechanic} data-scene-mode="controls" data-active-control="warp" className="control-mechanic control-mechanic--warp">
             <header><span className="axis-chip axis-chip--roll">ROLL</span><h3>Wing warping and the hip cradle</h3></header>
             <div className="mechanism-chain"><span>Pilot shifts hips</span><i>→</i><span>Cables pull corners</span><i>→</i><span>Wing tips twist oppositely</span></div>
+            <ControlExplodedView type="roll" value={telemetry.warp} />
             <p>The pilot slid the cradle sideways. Cables increased the angle of attack at one pair of wing tips while decreasing it at the other, producing unequal lift and rolling the Flyer into a bank. Once banked, part of lift points sideways and bends the flight path into a turn. Holding the bank intentionally produces a circle; leveling the wings preserves the new heading.</p>
             <Equation caption="Differential lift across the wide span produces roll torque. Banking also reduces the upward share of lift, so pitch may be needed to hold altitude."
               values={`warp ${telemetry.warp.toFixed(1)}° · bank ${telemetry.bankDegrees.toFixed(1)}°`}>
@@ -879,9 +1027,10 @@ export function WrightLab() {
             </Equation>
           </article>
 
-          <article className="control-mechanic control-mechanic--yaw">
+          <article ref={yawMechanic} data-scene-mode="controls" data-active-control="yaw" className="control-mechanic control-mechanic--yaw">
             <header><span className="axis-chip axis-chip--yaw">YAW</span><h3>The linked twin rudders</h3></header>
             <div className="mechanism-chain"><span>Warp linkage</span><i>→</i><span>Twin rudders pivot</span><i>→</i><span>Tail force yaws nose</span></div>
+            <ControlExplodedView type="yaw" value={telemetry.rudder} />
             <p>The two rear rudders redirected airflow sideways. On the 1903 Flyer they were linked to wing warping, helping the nose follow the bank and countering adverse yaw from the more strongly lifted wing. The simulator preserves that linkage so a bank command also coordinates the rudders.</p>
             <Equation caption="The rudder's sideways force acts behind the center of mass. Its long tail arm turns the nose and changes the direction of ground flow."
               values={`rudder ${telemetry.rudder.toFixed(1)}° · heading ${String(Math.round(headingDegrees)).padStart(3, '0')}°`}>

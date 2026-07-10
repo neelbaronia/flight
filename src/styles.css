@@ -234,6 +234,93 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   color: white;
 }
 
+.direct-flight-controls {
+  position: absolute;
+  z-index: 4;
+  right: 20px;
+  bottom: 150px;
+  display: grid;
+  grid-template-columns: repeat(3, 58px);
+  gap: 7px;
+}
+
+.direct-control-dial {
+  position: relative;
+  width: 58px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: white;
+}
+
+.direct-control-dial__face {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff1d7;
+  border-radius: 50%;
+  background: rgba(39, 67, 74, .94);
+  box-shadow: 3px 4px 0 rgba(40, 55, 60, .22), inset 0 0 0 2px #172e34;
+}
+
+.direct-control-dial__face::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid color-mix(in srgb, var(--control-accent) 74%, white);
+  border-radius: 50%;
+  opacity: .65;
+}
+
+.direct-control-dial__face i {
+  position: absolute;
+  bottom: 50%;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 18px;
+  background: var(--control-accent);
+  transform: rotate(var(--control-angle));
+  transform-origin: center bottom;
+  transition: transform .12s ease-out;
+}
+
+.direct-control-dial__face b {
+  position: relative;
+  z-index: 1;
+  margin-top: 15px;
+  padding: 1px 3px;
+  background: #27434a;
+  font: 500 .49rem 'DM Mono', monospace;
+}
+
+.direct-control-dial__label {
+  padding: 2px 4px;
+  background: rgba(39, 67, 74, .9);
+  font: 500 .47rem 'DM Mono', monospace;
+  text-transform: uppercase;
+}
+
+.direct-control-dial input[type='range'] {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: 58px;
+  height: 54px;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.direct-control-dial:focus-within .direct-control-dial__face {
+  outline: 3px solid color-mix(in srgb, var(--control-accent) 72%, white);
+  outline-offset: 3px;
+  box-shadow: 3px 4px 0 rgba(40, 55, 60, .22), inset 0 0 0 2px #172e34, 0 0 0 6px rgba(255, 248, 226, .5);
+}
+
 .lab-layout--painted-notes .demo-pane::after {
   content: '';
   position: absolute;
@@ -903,11 +990,46 @@ input[type='range']::-moz-range-thumb {
 }
 
 .mechanism-chain i { align-self: center; color: #c06152; font: normal 700 .9rem 'DM Mono', monospace; }
+
+.control-exploded {
+  position: relative;
+  height: 154px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid #c7b8a9;
+  border-left: 4px solid var(--exploded-accent);
+  background: #e7f1ed;
+}
+
+.control-exploded--pitch { --exploded-accent: #76569b; }
+.control-exploded--roll { --exploded-accent: #27829c; }
+.control-exploded--yaw { --exploded-accent: #e65a45; }
+.control-exploded canvas { display: block; }
+
+.control-exploded > span {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+  color: #315964;
+  font: 500 .55rem 'DM Mono', monospace;
+}
+
+.control-exploded > span b { font-weight: 500; }
+.control-exploded > span output { padding: 3px 5px; background: #fff8ec; color: var(--exploded-accent); }
 .lab-layout--time-night .control-mechanic { border-top-color: #40536f; }
 .lab-layout--time-night .control-mechanic h3 { color: #eef4fb; }
 .lab-layout--time-night .control-mechanic > p { color: #afc0d3; }
 .lab-layout--time-night .mechanism-chain span { color: #dce7f3; border-color: #526989; background: #233653; }
 .lab-layout--time-night .mechanism-chain i { color: #f29b9b; }
+.lab-layout--time-night .control-exploded { border-color: #526989; background: #1a2f4c; }
+.lab-layout--time-night .control-exploded > span { color: #dce7f3; }
+.lab-layout--time-night .control-exploded > span output { background: #233653; }
 
 .instrument-cluster {
   position: absolute;
@@ -993,6 +1115,7 @@ input[type='range']::-moz-range-thumb {
   .lesson-heading h1 { font-size: 2rem; }
   .instrument-cluster { height: 88px; grid-template-columns: 88px minmax(120px, 160px) 88px; gap: 7px; }
   .flight-keys { bottom: 108px; left: 12px; }
+  .direct-flight-controls { right: 12px; bottom: 105px; transform: scale(.82); transform-origin: right bottom; }
   .dial small, .altimeter small { bottom: 12px; }
   .demo-pane--wing .force-legend { display: none; }
   .drag-callout { display: none; }
@@ -1025,7 +1148,8 @@ input[type='range']::-moz-range-thumb {
   .hud-strip small { font-size: .48rem; }
   .hud-strip b { font-size: .62rem; }
   .instrument-cluster { right: 10px; bottom: 10px; left: 10px; height: 76px; grid-template-columns: 76px minmax(100px, 130px) 76px; }
-  .flight-keys { bottom: 96px; transform: scale(.88); transform-origin: left bottom; }
+  .flight-keys { bottom: 96px; width: 140px; height: 92px; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); transform: none; }
+  .direct-flight-controls { bottom: 94px; transform: scale(.82); }
   .dial span, .altimeter span { font-size: .68rem; }
   .dial small, .altimeter small { font-size: .4rem; bottom: 10px; }
   .attitude b, .altimeter b { bottom: 6px; font-size: .42rem; }

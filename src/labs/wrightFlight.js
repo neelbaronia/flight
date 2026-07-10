@@ -6,19 +6,19 @@ export const MAX_FLYER_ALTITUDE = 304.8
 export const FLYER_WEIGHT = FLYER_MASS * GRAVITY
 
 const AIR_DENSITY = 1.225
-const MAX_THRUST = 760
+const MAX_THRUST = 900
 const STALL_ANGLE = 16 * Math.PI / 180
 const MAX_PITCH = 18 * Math.PI / 180
 const MIN_PITCH = -12 * Math.PI / 180
 const MAX_BANK = 22 * Math.PI / 180
-const TRIM_PITCH = 4 * Math.PI / 180
+const TRIM_PITCH = 1.22 * Math.PI / 180
 
 const wrapAngle = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle))
 
 export function createFlyerState({ airborne = false } = {}) {
   return {
-    speed: airborne ? 13.2 : 8.5,
-    altitude: airborne ? 18 : 0,
+    speed: airborne ? 15.5 : 8.5,
+    altitude: airborne ? 45 : 0,
     heading: 0,
     pitch: TRIM_PITCH,
     bank: 0,
@@ -27,7 +27,7 @@ export function createFlyerState({ airborne = false } = {}) {
     rollRate: 0,
     turnRate: 0,
     positionX: 0,
-    positionZ: airborne ? -60 : 0,
+    positionZ: airborne ? -90 : 0,
     elevator: 0,
     warp: 0,
     rudder: 0,
@@ -68,13 +68,15 @@ export function stepFlyer(previous, input, delta) {
   const dt = clamp(delta, 0, 1 / 30)
   const pitchInput = clamp(input.pitch || 0, -1, 1)
   const rollInput = clamp(input.roll || 0, -1, 1)
+  const yawInput = clamp(input.yaw || 0, -1, 1)
   const controlAuthority = clamp((state.speed - 2) / 9, 0.12, 1)
 
   state.elevator += (pitchInput * 12 - state.elevator) * (1 - Math.exp(-8 * dt))
   state.warp += (rollInput * 10 - state.warp) * (1 - Math.exp(-9 * dt))
-  state.rudder += (rollInput * 11 - state.rudder) * (1 - Math.exp(-7 * dt))
+  const rudderInput = clamp(rollInput + yawInput, -1, 1)
+  state.rudder += (rudderInput * 11 - state.rudder) * (1 - Math.exp(-7 * dt))
 
-  const pitchTarget = clamp(TRIM_PITCH + pitchInput * 8 * Math.PI / 180, MIN_PITCH, MAX_PITCH)
+  const pitchTarget = clamp(TRIM_PITCH + pitchInput * 10.5 * Math.PI / 180, MIN_PITCH, MAX_PITCH)
   const pitchAcceleration = (pitchTarget - state.pitch) * 5.2 * controlAuthority - state.pitchRate * 3.4
   state.pitchRate += pitchAcceleration * dt
   state.pitch = clamp(state.pitch + state.pitchRate * dt, MIN_PITCH, MAX_PITCH)
@@ -125,7 +127,8 @@ export function stepFlyer(previous, input, delta) {
     const horizontalSpeed = Math.max(state.speed * Math.cos(state.flightPathAngle), 4)
     const bankTurn = (state.lift * Math.sin(state.bank)) / (FLYER_MASS * horizontalSpeed)
     const linkedRudderTurn = rollInput * controlAuthority * 0.025
-    state.turnRate = clamp(bankTurn + linkedRudderTurn, -0.22, 0.22)
+    const directRudderTurn = yawInput * controlAuthority * 0.085
+    state.turnRate = clamp(bankTurn + linkedRudderTurn + directRudderTurn, -0.22, 0.22)
     state.heading = wrapAngle(state.heading + state.turnRate * dt)
   } else {
     state.turnRate = 0
