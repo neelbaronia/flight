@@ -81,10 +81,16 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .site-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 0 28px;
   border-bottom: 1px solid rgba(117, 82, 70, .18);
   background: rgba(255, 250, 241, .94);
+}
+
+.site-title {
+  color: var(--ink);
+  font: 700 1.65rem 'Fraunces', serif;
+  text-decoration: none;
 }
 
 .brand {
@@ -460,6 +466,7 @@ body[data-flight-time='night'] .site-header,
 body[data-flight-time='night'] .lab-tabs { color: #dce7f3; background: #14243a; border-color: #344864; }
 body[data-flight-time='night'] .brand,
 body[data-flight-time='night'] .lab-tabs button { color: #b9c8d8; }
+body[data-flight-time='night'] .site-title { color: #eef4fb; }
 body[data-flight-time='night'] .brand small { color: #8fa4b9; }
 body[data-flight-time='night'] .header-note { color: #d6a9c6; }
 body[data-flight-time='night'] .lab-tabs button.is-active { color: #ff9187; }
