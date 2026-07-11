@@ -616,16 +616,20 @@ const CONTROL_LINKAGE_META = {
   roll: {
     input: 'HIP CRADLE',
     linkage: 'WARP CABLE + PULLEYS',
-    output: 'WING TIPS',
-    orientation: 'MECHANISM MAP · PARTS REPOSITIONED',
-    camera: { position: [0, 3.4, 7.5], zoom: 50 },
+    output: 'OPPOSITE WING TWIST',
+    orientation: "OVER PILOT'S LEFT SHOULDER · ACROSS THE WINGSPAN",
+    note: 'SIMPLIFIED CABLE PATH',
+    stages: ['HIPS SLIDE SIDEWAYS', 'CRADLE PULLS CABLES', 'TENSION REACHES BOTH TIPS', 'WINGS TWIST OPPOSITELY'],
+    camera: { position: [-3.6, 3.1, 6.4], zoom: 48 },
   },
   yaw: {
     input: 'SAME HIP CRADLE',
     linkage: 'SHARED WARP LINK',
     output: 'TWIN RUDDERS',
-    orientation: 'MECHANISM MAP · PARTS REPOSITIONED',
-    camera: { position: [0, 3.4, 7.5], zoom: 50 },
+    orientation: "OVER PILOT'S LEFT SIDE · TAIL / REAR NEAR CAMERA",
+    note: 'SIMPLIFIED CABLE PATH',
+    stages: ['HIPS MOVE CRADLE', 'SAME WARP CABLE RUNS AFT', 'REAR BELLCRANK SPLITS PULL', 'BOTH RUDDERS PIVOT'],
+    camera: { position: [-3.6, 3.15, 5.9], zoom: 51 },
   },
 }
 
@@ -638,25 +642,35 @@ function LinkageJoint({ position, color, radius = 0.065 }) {
   )
 }
 
-function LinkagePilot({ position, hipShift = 0, highlightCradle = false }) {
+function HipCradlePilot({ position = [0, 0, 0], hipShift = 0 }) {
+  const skin = '#c47c5d'
+  const clothing = '#35545b'
+  const chest = [-0.08, -0.16, 0]
+  const pelvis = [-0.66, -0.24, hipShift * 0.72]
+
   return (
     <group position={position}>
-      <mesh position={[-0.12, 0.08, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <capsuleGeometry args={[0.13, 0.72, 6, 12]} />
-        <meshStandardMaterial color="#35545b" roughness={0.88} />
+      <mesh position={[-0.66, -0.47, 0]}>
+        <boxGeometry args={[0.9, 0.08, 0.82]} />
+        <meshStandardMaterial color="#a7bbb7" transparent opacity={0.15} roughness={0.9} depthWrite={false} />
       </mesh>
-      <mesh position={[0.5, 0.09, 0]}>
-        <sphereGeometry args={[0.17, 14, 10]} />
-        <meshStandardMaterial color="#c47c5d" roughness={0.92} />
+      <Beam from={[-0.98, -0.53, -0.74]} to={[-0.98, -0.53, 0.74]} radius={0.024} color="#94503d" />
+      <Beam from={[-0.34, -0.53, -0.74]} to={[-0.34, -0.53, 0.74]} radius={0.024} color="#94503d" />
+      <mesh position={[-0.66, -0.47, hipShift]}>
+        <boxGeometry args={[0.9, 0.1, 0.82]} />
+        <meshStandardMaterial color="#27829c" roughness={0.84} />
       </mesh>
-      <mesh position={[-0.42 + hipShift, -0.12, 0]}>
-        <sphereGeometry args={[0.15, 12, 8]} />
-        <meshStandardMaterial color={highlightCradle ? '#315964' : '#796555'} roughness={0.9} />
+      <Line points={[[pelvis[0], pelvis[1] + 0.04, -0.62], [pelvis[0], pelvis[1] + 0.04, 0.62]]} color="#27829c" lineWidth={2.2} transparent opacity={0.48} />
+      <Beam from={pelvis} to={chest} radius={0.16} color={clothing} />
+      <LinkageJoint position={pelvis} color="#27829c" radius={0.15} />
+      <mesh position={[0.44, -0.1, 0]}>
+        <sphereGeometry args={[0.19, 14, 10]} />
+        <meshStandardMaterial color={skin} roughness={0.92} />
       </mesh>
-      <mesh position={[-0.35 + hipShift, -0.3, 0]}>
-        <boxGeometry args={[0.9, 0.12, 0.62]} />
-        <meshStandardMaterial color={highlightCradle ? '#27829c' : '#9f694d'} roughness={0.85} />
-      </mesh>
+      <Beam from={[0.08, -0.17, 0.12]} to={[0.43, -0.31, 0.35]} radius={0.055} color={clothing} />
+      <Beam from={[0.08, -0.17, -0.12]} to={[0.43, -0.31, -0.35]} radius={0.055} color={clothing} />
+      <Beam from={pelvis} to={[-1.28, -0.31, hipShift * 0.72 + 0.22]} radius={0.075} color={clothing} />
+      <Beam from={pelvis} to={[-1.28, -0.31, hipShift * 0.72 - 0.22]} radius={0.075} color={clothing} />
     </group>
   )
 }
@@ -802,81 +816,111 @@ function ControlLinkageModel({ type, value, inputValue = value, isIsolated = fal
 
   if (type === 'roll') {
     const command = clamp(value / 10, -1, 1)
-    const twist = radians * 2.1
-    const hipShift = command * 0.24
+    const hipShift = command * 0.34
+    const tipDeflection = Math.tan(radians) * 0.66
+    const upperY = 0.43
+    const lowerY = -0.4
+    const tipPoint = (level, side) => [-0.54, level + side * tipDeflection, side * 2.22]
+    const upperLeft = tipPoint(upperY, 1)
+    const upperRight = tipPoint(upperY, -1)
+    const lowerLeft = tipPoint(lowerY, 1)
+    const lowerRight = tipPoint(lowerY, -1)
+    const leftAttach = [-0.66, -0.45, hipShift + 0.4]
+    const rightAttach = [-0.66, -0.45, hipShift - 0.4]
+    const leftGuide = [-0.4, -0.5, 0.86]
+    const rightGuide = [-0.4, -0.5, -0.86]
     return (
-      <group rotation={[-0.06, 0, 0]}>
-        <LinkagePilot position={[-2.18, -0.1, 0.18]} hipShift={hipShift} highlightCradle />
-        <Line points={[[-2.52 + hipShift, -0.4, 0.46], [-0.72, -0.52, 0.48], [0.1, -0.25, 0.46], [2.42, 0.54, 0.4]]} color="#27829c" lineWidth={2.7} />
-        <Line points={[[-2.02 + hipShift, -0.4, -0.16], [-0.72, -0.52, -0.22], [0.1, 0.48, -0.3], [-0.1, -0.48, -0.34]]} color="#76569b" lineWidth={2.4} />
-        <LinkageJoint position={[-0.72, -0.52, 0.13]} color="#315964" radius={0.08} />
+      <group>
+        <CamberedSurface width={4.6} chord={1.35} camber={0.055} color={fabric} opacity={0.8} position={[0.1, lowerY, 0]} rotation={[0, -Math.PI / 2, 0]} ribs warp={value} />
+        <CamberedSurface width={4.6} chord={1.35} camber={0.055} color={fabric} opacity={0.8} position={[0.1, upperY, 0]} rotation={[0, -Math.PI / 2, 0]} ribs warp={value} />
+        {[-1.78, -0.55, 0.68].flatMap((z) => (
+          <Beam key={z} from={[-0.48, lowerY, z]} to={[-0.48, upperY, z]} radius={0.022} color={frame} />
+        ))}
+        <HipCradlePilot position={[-0.08, 0, 0]} hipShift={hipShift} />
 
-        {[-0.31, 0.31].flatMap((y) => [-1, 1].map((side) => (
-          <mesh key={`ghost-${y}-${side}`} position={[1.16 + side * 0.66, y, 0]}>
-            <boxGeometry args={[1.25, 0.06, 0.72]} />
-            <meshStandardMaterial color={ghost} transparent opacity={0.16} roughness={0.92} depthWrite={false} />
-          </mesh>
-        )))}
-        {[-0.31, 0.31].flatMap((y) => [-1, 1].map((side) => (
-          <group key={`${y}-${side}`} position={[1.16 + side * 0.66, y, 0]} rotation={[side * twist, 0, 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[1.25, 0.065, 0.72]} />
-              <meshStandardMaterial color={fabric} roughness={0.9} />
-            </mesh>
-            <Line points={[[side * -0.54, 0.05, -0.32], [side * 0.54, 0.05, -0.32]]} color="#27829c" lineWidth={2} />
+        <Line points={[leftAttach, leftGuide, upperLeft]} color="#27829c" lineWidth={2.8} />
+        <Line points={[leftAttach, [-0.18, -0.32, 0.18], lowerRight]} color="#27829c" lineWidth={2.1} transparent opacity={0.78} />
+        <Line points={[rightAttach, rightGuide, upperRight]} color="#76569b" lineWidth={2.8} />
+        <Line points={[rightAttach, [-0.18, -0.32, -0.18], lowerLeft]} color="#76569b" lineWidth={2.1} transparent opacity={0.78} />
+        <LinkageJoint position={leftGuide} color="#27829c" radius={0.075} />
+        <LinkageJoint position={rightGuide} color="#76569b" radius={0.075} />
+
+        {[upperLeft, upperRight, lowerLeft, lowerRight].map((point, index) => (
+          <group key={`tip-${index}`}>
+            <LinkageJoint position={[point[0], index % 2 === 0 ? (index < 2 ? upperY : lowerY) : (index < 2 ? upperY : lowerY), point[2]]} color={ghost} radius={0.06} />
+            <LinkageJoint position={point} color={index % 2 === 0 ? '#27829c' : '#76569b'} radius={0.075} />
           </group>
-        )))}
-        {[0.62, 1.7].map((x) => <Beam key={x} from={[x, -0.36, 0]} to={[x, 0.36, 0]} radius={0.024} color={frame} />)}
+        ))}
       </group>
     )
   }
 
   const command = clamp(inputValue / 10, -1, 1)
-  const hipShift = command * 0.24
+  const hipShift = command * 0.34
   const rudderDeflection = radians * 2.5
-  const rudderHorn = (x) => [
-    x - 0.42 * Math.sin(rudderDeflection),
-    -0.28,
-    -0.42 * Math.cos(rudderDeflection),
+  const linkedDeflection = inputValue * 1.1 * Math.PI / 180 * 2.5
+  const rudderHingeX = -1.4
+  const rudderHornOffset = -0.52
+  const rudderHorn = (z, deflection) => [
+    rudderHingeX + rudderHornOffset * Math.cos(deflection),
+    -0.34,
+    z - rudderHornOffset * Math.sin(deflection),
   ]
-  const leftRudderHorn = rudderHorn(1.46)
-  const rightRudderHorn = rudderHorn(2.08)
+  const leftRudderHorn = rudderHorn(0.38, rudderDeflection)
+  const rightRudderHorn = rudderHorn(-0.38, rudderDeflection)
+  const cableStart = [-0.01, -0.46, hipShift + 0.4]
+  const junction = [-0.78, -0.4, 0.72]
   return (
-    <group rotation={[-0.06, 0, 0]}>
-      <LinkagePilot position={[-2.18, -0.1, 0.18]} hipShift={hipShift} highlightCradle />
-      <Line points={[[-2.48 + hipShift, -0.4, 0.42], [-0.82, -0.48, 0.4], [-0.18, -0.16, 0.34]]} color="#27829c" lineWidth={2.6} />
-      <Line points={[[-0.18, -0.16, 0.34], [0.72, -0.12, 0.28], leftRudderHorn]} color="#e65a45" lineWidth={2.8} />
-      <Line points={[[-0.18, -0.16, 0.34], [0.72, -0.36, -0.24], rightRudderHorn]} color="#e65a45" lineWidth={2.2} />
-      <LinkageJoint position={[-0.18, -0.16, 0.34]} color="#76569b" radius={0.09} />
-      <Line points={[[0.05, 0.28, -0.3], [0.55, 0.68, -0.32], [1.05, 0.28, -0.3]]} color="#27829c" lineWidth={2} transparent opacity={0.45} />
-      {isIsolated && <Line points={[[0.22, -0.86, 0.1], [-0.18, -0.16, 0.34]]} color="#e65a45" lineWidth={3.2} />}
+    <group>
+      <CamberedSurface width={2.5} chord={1.3} camber={0.04} color={fabric} opacity={0.22} position={[0.72, -0.4, 0]} rotation={[0, -Math.PI / 2, 0]} ribs={false} warp={0} />
+      <HipCradlePilot position={[0.65, 0, 0]} hipShift={hipShift} />
+      {[-0.64, 0.64].map((z) => <Beam key={z} from={[0.35, -0.53, z]} to={[-2.08, -0.53, z]} radius={0.027} color={frame} />)}
+      <Line points={[cableStart, [-0.34, -0.44, 0.72], junction]} color="#27829c" lineWidth={3} />
+      <Line points={[[-0.01, -0.46, hipShift - 0.4], [0.38, -0.36, -1.18]]} color="#27829c" lineWidth={2} transparent opacity={0.3} />
+      <Line points={[cableStart, [0.38, -0.36, 1.18]]} color="#27829c" lineWidth={2} transparent opacity={0.3} />
+      <Line points={[junction, [-1.18, -0.35, 0.64], leftRudderHorn]} color="#e65a45" lineWidth={2.8} />
+      <Line points={[junction, [-1.18, -0.48, -0.34], rightRudderHorn]} color="#e65a45" lineWidth={2.3} />
+      <LinkageJoint position={junction} color="#76569b" radius={0.09} />
+      <Beam from={[-0.78, -0.52, -0.66]} to={[-0.78, -0.52, 0.74]} radius={0.032} color={frame} />
+      <Beam from={[-0.78, -0.4, 0.5]} to={[-0.78, -0.4, 0.92]} radius={0.04} color="#76569b" />
 
-      {[1.46, 2.08].map((x) => (
-        <mesh key={`ghost-${x}`} position={[x, 0.27, 0]}>
-          <boxGeometry args={[0.075, 1.25, 0.68]} />
-          <meshStandardMaterial color={ghost} transparent opacity={0.17} roughness={0.92} depthWrite={false} />
-        </mesh>
-      ))}
-      {[1.46, 2.08].map((x) => (
-        <group key={x} position={[x, 0.27, 0]} rotation={[0, rudderDeflection, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[0.075, 1.25, 0.68]} />
-            <meshStandardMaterial color={fabric} roughness={0.92} />
+      {isIsolated && (
+        <>
+          <mesh position={[0.18, -0.72, -1.02]}>
+            <boxGeometry args={[0.42, 0.18, 0.22]} />
+            <meshStandardMaterial color="#e65a45" roughness={0.82} />
           </mesh>
-          <Line points={[[0, -0.55, -0.3], [0, 0.55, -0.3]]} color="#e65a45" lineWidth={2.2} />
-          <Beam from={[0, -0.55, 0]} to={[0, -0.55, -0.42]} radius={0.03} color="#e65a45" />
+          <Line points={[[0.18, -0.72, -0.9], [-0.3, -0.58, -0.12], junction]} color="#e65a45" lineWidth={3.2} />
+        </>
+      )}
+
+      {[0.38, -0.38].map((z) => (
+        <group key={`ghost-${z}`} position={[rudderHingeX, 0.28, z]} rotation={[0, isIsolated ? linkedDeflection : 0, 0]}>
+          <mesh position={[-0.34, 0, 0]}>
+            <boxGeometry args={[0.68, 1.24, 0.065]} />
+            <meshStandardMaterial color={isIsolated ? '#27829c' : ghost} transparent opacity={0.17} roughness={0.92} depthWrite={false} />
+          </mesh>
         </group>
       ))}
-      <Beam from={[1.08, -0.36, 0]} to={[2.46, -0.36, 0]} radius={0.025} color={frame} />
-      <Beam from={[1.08, 0.9, 0]} to={[2.46, 0.9, 0]} radius={0.025} color={frame} />
+      {[0.38, -0.38].map((z) => (
+        <group key={z} position={[rudderHingeX, 0.28, z]} rotation={[0, rudderDeflection, 0]}>
+          <mesh position={[-0.34, 0, 0]} castShadow>
+            <boxGeometry args={[0.68, 1.24, 0.07]} />
+            <meshStandardMaterial color={fabric} roughness={0.92} />
+          </mesh>
+          <Line points={[[0, -0.55, 0], [0, 0.55, 0]]} color="#e65a45" lineWidth={2.2} />
+          <Beam from={[rudderHornOffset, -0.55, 0]} to={[-0.68, -0.55, 0]} radius={0.03} color="#e65a45" />
+        </group>
+      ))}
+      {[-0.03, 0.59].map((y) => <Beam key={y} from={[-2.08, y, -0.66]} to={[-2.08, y, 0.66]} radius={0.027} color={frame} />)}
+      {[-0.38, 0.38].map((z) => <Beam key={`rudder-post-${z}`} from={[rudderHingeX, -0.35, z]} to={[rudderHingeX, 0.9, z]} radius={0.026} color={frame} />)}
     </group>
   )
 }
 
-function ControlExplodedView({ type, value, inputValue = value }) {
+function ControlExplodedView({ type, value, inputValue = value, isIsolated = false }) {
   const meta = CONTROL_LINKAGE_META[type]
   const stages = meta.stages ?? [meta.input, meta.linkage, meta.output]
-  const isIsolated = type === 'yaw' && Math.abs(value - inputValue * 1.1) > 0.75
   const container = useRef()
   const [loaded, setLoaded] = useState(() => typeof IntersectionObserver === 'undefined')
 
@@ -894,8 +938,8 @@ function ControlExplodedView({ type, value, inputValue = value }) {
   }, [loaded])
 
   return (
-    <div ref={container} className={`control-exploded control-exploded--${type}`} style={{ '--linkage-stage-count': stages.length }} role="img" aria-label={isIsolated ? `Lab rudder isolate moves the twin rudders to ${value.toFixed(1)} degrees while the historical hip cradle remains at ${inputValue.toFixed(1)} degrees` : `${meta.input} moves the ${meta.linkage.toLowerCase()}, which moves the ${meta.output.toLowerCase()} to ${value.toFixed(1)} degrees`}>
-      <div className="control-exploded__orientation"><span>{meta.orientation}</span><span>MOTION ENLARGED</span></div>
+    <div ref={container} className={`control-exploded control-exploded--${type}`} style={{ '--linkage-stage-count': stages.length }} role="img" aria-label={isIsolated ? `Lab rudder isolate moves the twin rudders to ${value.toFixed(1)} degrees; the linked reference from ${inputValue.toFixed(1)} degrees of wing warp is ${(inputValue * 1.1).toFixed(1)} degrees` : `${meta.input} moves the ${meta.linkage.toLowerCase()}, which moves the ${meta.output.toLowerCase()} to ${value.toFixed(1)} degrees`}>
+      <div className="control-exploded__orientation"><span>{meta.orientation}</span><span>{meta.note ?? 'MOTION ENLARGED'}</span></div>
       <div className="control-exploded__stages" aria-hidden="true">
         {stages.map((stage, index) => <span key={stage}><i>{index + 1}</i>{stage}</span>)}
       </div>
@@ -908,7 +952,7 @@ function ControlExplodedView({ type, value, inputValue = value }) {
         </Canvas>
       )}
       {isIsolated && <span className="control-exploded__lab-badge">LAB RUDDER OVERRIDE</span>}
-      <div className="control-exploded__readout"><b>{isIsolated ? 'LAB ISOLATE' : type === 'pitch' ? 'HAND MOVES FORE / AFT' : meta.input}</b><i aria-hidden="true">→</i><span>{meta.output}</span><output>{value >= 0 ? '+' : ''}{value.toFixed(1)}°</output></div>
+      <div className="control-exploded__readout"><b>{isIsolated ? 'LAB ISOLATE' : type === 'pitch' ? 'HAND MOVES FORE / AFT' : type === 'roll' ? 'HIPS SLIDE LEFT / RIGHT' : 'SAME HIP MOVEMENT'}</b><i aria-hidden="true">→</i><span>{meta.output}</span><output>{value >= 0 ? '+' : ''}{value.toFixed(1)}°</output></div>
     </div>
   )
 }
@@ -1230,7 +1274,7 @@ export function WrightLab() {
         </section>
 
         <section className="lesson-section control-mechanics">
-          <h2>Three motions, three mechanisms</h2>
+          <h2>Three motions, two pilot inputs</h2>
           <p className="body-copy">The Flyer did not have a modern control wheel. A hand lever and a sliding hip cradle pulled cables through its open wooden frame.</p>
 
           <article ref={pitchMechanic} data-scene-mode="controls" data-active-control="pitch" className="control-mechanic control-mechanic--pitch">
@@ -1248,7 +1292,7 @@ export function WrightLab() {
             <header><span className="axis-chip axis-chip--roll">ROLL</span><h3>Wing warping and the hip cradle</h3></header>
             <div className="mechanism-chain"><span><b>1 · Input</b>Pilot slides the hip cradle</span><i>→</i><span><b>2 · Linkage</b>Cables pull opposite corners</span><i>→</i><span><b>3 · Output</b>Wing tips twist oppositely</span></div>
             <ControlExplodedView type="roll" value={telemetry.warp} />
-            <p>The pilot slid the cradle sideways. Cables increased the angle of attack at one pair of wing tips while decreasing it at the other, producing unequal lift and rolling the Flyer into a bank. Once banked, part of lift points sideways and bends the flight path into a turn. Holding the bank intentionally produces a circle; leveling the wings preserves the new heading.</p>
+            <p>The prone pilot shifted his hips left or right, sliding the cradle across guide rails beneath him. Its cable loop traded tension between diagonally opposed wing corners, flexing one pair of tips to a higher angle of attack and the other pair lower. These were twisting fabric wings, not hinged ailerons; their unequal lift rolled the Flyer into a bank.</p>
             <Equation caption="Differential lift across the wide span produces roll torque. Banking also reduces the upward share of lift, so pitch may be needed to hold altitude."
               values={`warp ${telemetry.warp.toFixed(1)}° · bank ${telemetry.bankDegrees.toFixed(1)}°`}>
               τ<sub>roll</sub> ≈ (L<sub>right</sub> − L<sub>left</sub>) × half-span
@@ -1258,8 +1302,8 @@ export function WrightLab() {
           <article ref={yawMechanic} data-scene-mode="controls" data-active-control="yaw" className="control-mechanic control-mechanic--yaw">
             <header><span className="axis-chip axis-chip--yaw">YAW</span><h3>The linked twin rudders</h3></header>
             <div className="mechanism-chain"><span><b>1 · Same input</b>Pilot slides the hip cradle</span><i>→</i><span><b>2 · Shared linkage</b>Warp cable also pulls rudders</span><i>→</i><span><b>3 · Output</b>Twin rudders pivot together</span></div>
-            <ControlExplodedView type="yaw" value={telemetry.rudder} inputValue={telemetry.warp} />
-            <p>The two rear rudders redirected airflow sideways. On the 1903 Flyer they were linked to wing warping, helping the nose follow the bank and countering adverse yaw from the more strongly lifted wing. The simulator preserves that linkage so a bank command also coordinates the rudders; its separate yaw dial is only a lab isolate, not a third historical pilot control.</p>
+            <ControlExplodedView type="yaw" value={telemetry.rudder} inputValue={telemetry.warp} isIsolated={Math.abs(directControls.yaw) > 0.02} />
+            <p>The same hip-cradle cable continued aft to a bellcrank that split the pull between both rear rudders. They pivoted together, redirecting airflow sideways so the nose followed the bank and resisted adverse yaw from the more strongly lifted wing. The separate yaw dial remains a labeled lab isolate; the 1903 pilot did not have an independent rudder input.</p>
             <Equation caption="The rudder's sideways force acts behind the center of mass. Its long tail arm turns the nose and changes the direction of ground flow."
               values={`rudder ${telemetry.rudder.toFixed(1)}° · heading ${String(Math.round(headingDegrees)).padStart(3, '0')}°`}>
               τ<sub>yaw</sub> = F<sub>rudder</sub> × tail arm
