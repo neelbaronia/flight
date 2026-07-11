@@ -123,6 +123,32 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   text-shadow: 2px 2px 0 rgba(119, 189, 210, .45);
 }
 
+.site-credit {
+  position: absolute;
+  z-index: 1;
+  right: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-soft);
+  font: 500 .67rem 'DM Mono', monospace;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.site-credit::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  background: var(--yellow);
+  box-shadow: 2px 2px 0 var(--pink);
+  transform: rotate(45deg);
+}
+
+.site-credit strong { color: var(--blue-deep); }
+.site-credit:hover strong { color: var(--coral); }
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -529,6 +555,9 @@ body[data-flight-time='night'] .lab-tabs button { color: #b9c8d8; }
 body[data-flight-time='night'] .site-title span:nth-child(1) { color: #ff9187; text-shadow-color: rgba(242, 201, 77, .42); }
 body[data-flight-time='night'] .site-title span:nth-child(2) { color: #eef4fb; text-shadow-color: rgba(214, 169, 198, .42); }
 body[data-flight-time='night'] .site-title span:nth-child(3) { color: #82d3dc; text-shadow-color: rgba(118, 86, 155, .62); }
+body[data-flight-time='night'] .site-credit { color: #afc0d3; }
+body[data-flight-time='night'] .site-credit strong { color: #82d3dc; }
+body[data-flight-time='night'] .site-credit:hover strong { color: #ff9187; }
 body[data-flight-time='night'] .site-footer a { color: #dce7f3; }
 body[data-flight-time='night'] .site-footer a:hover { color: #ff9187; }
 body[data-flight-time='night'] .brand small { color: #8fa4b9; }
@@ -1723,6 +1752,15 @@ input[type='range']::-moz-range-thumb {
 @media (max-width: 760px) {
   .app-shell { grid-template-rows: 62px 58px auto; }
   .site-header { padding: 0 15px; }
+  .site-title { font-size: 1.38rem; transform: translateY(-7px); }
+  .site-credit {
+    right: auto;
+    bottom: 7px;
+    left: 50%;
+    font-size: .55rem;
+    transform: translateX(-50%);
+  }
+  .site-credit::before { width: 5px; height: 5px; }
   .header-note { display: none; }
   .brand-mark { width: 36px; height: 36px; }
   .brand small { display: none; }

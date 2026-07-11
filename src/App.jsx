@@ -34,6 +34,10 @@ export default function App() {
           <span>FLIGHT</span>
           <span>WORKS</span>
         </a>
+        <a className="site-credit" href="https://www.nbaronia.com" target="_blank" rel="noreferrer">
+          <span>Made by</span>
+          <strong>nbaronia</strong>
+        </a>
       </header>
 
       <nav className="lab-tabs" aria-label="Flight experiments">
@@ -58,7 +62,6 @@ export default function App() {
 
       <footer className="site-footer">
         <div className="site-footer__links">
-          <a href="https://www.nbaronia.com" target="_blank" rel="noreferrer">Made by nbaronia</a>
           <a href="https://github.com/neelbaronia/flight" target="_blank" rel="noreferrer"><Github size={15} aria-hidden="true" />View source on GitHub</a>
         </div>
       </footer>
