@@ -1320,7 +1320,8 @@ input[type='range']::-moz-range-thumb {
 .altimeter { border-radius: 50%; }
 
 .system-icon { width: 13px; height: 13px; margin-top: 4px; transform: rotate(45deg); }
-.system-icon--flaps { background: var(--coral); }
+.system-icon--flaps { background: #e5ad42; }
+.system-icon--aileron { background: #2f94a3; }
 .system-icon--engines { border-radius: 50%; background: var(--yellow); }
 .system-icon--sweep { background: var(--blue-deep); }
 

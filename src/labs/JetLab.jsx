@@ -13,7 +13,12 @@ const JET_CRUISE_DENSITY = 0.38
 const JET_INITIAL_ALTITUDE = 10_670
 const JET_MAX_THRUST = 250_000
 const JET_SIMULATION_RATE = 10
-const JET_MODE_SHORT = { flight: 'FOUR FORCES', fuel: 'FUEL + THRUST', tail: 'TAIL CONTROLS' }
+const JET_MODE_SHORT = { flight: 'FOUR FORCES', fuel: 'FUEL + THRUST', surfaces: 'CONTROL SURFACES' }
+const JET_CAMERAS = {
+  flight: { position: [9.5, 6.8, 9.5], fov: 38 },
+  fuel: { position: [9.2, 6.4, 10], fov: 38 },
+  surfaces: { position: [8.4, 7.4, 10.4], fov: 36 },
+}
 const JET_INITIAL_SPEED = Math.sqrt(
   (2 * JET_MASS * GRAVITY) / (JET_CRUISE_DENSITY * JET_AREA * liftCoefficient(2.5, 0.3)),
 )
@@ -112,10 +117,10 @@ function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, tim
         <group ref={jetAttitude}>
           <JumboModel pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} time={time} mode={mode} />
           <group rotation={[(pitch * Math.PI) / 180, 0, (-bank * Math.PI) / 180]}>
-            {mode === 'flight' && <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.25 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`THRUST · ${formatForce(engineThrust)}`} />}
-            {mode === 'fuel' && <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.5 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`FORWARD THRUST · ${formatForce(engineThrust)}`} />}
+            {mode === 'flight' && <ForceArrow from={[-4.4, 0.9, 0.15]} direction={[0, 0, -1]} length={0.25 + (engineThrust / JET_MAX_THRUST) * 1.6} color="#f4cd4f" label={`THRUST · ${formatForce(engineThrust)}`} />}
+            {mode === 'fuel' && <ForceArrow from={[-4.4, 0.9, 0.15]} direction={[0, 0, -1]} length={0.5 + (engineThrust / JET_MAX_THRUST) * 1.6} color="#f4cd4f" label={`FORWARD THRUST · ${formatForce(engineThrust)}`} />}
           </group>
-          {mode === 'flight' && <ForceArrow from={[1.4, 0.1, 0.5]} direction={[0, 0, 1]} length={0.25 + Math.min(1.7, drag / 140_000)} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />}
+          {mode === 'flight' && <ForceArrow from={[4.75, 0.8, 0.15]} direction={[0, 0, 1]} length={0.25 + Math.min(1.7, drag / 140_000)} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />}
         </group>
         {mode === 'flight' && (
           <>
@@ -124,7 +129,7 @@ function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, tim
           </>
         )}
       </group>
-      <OrbitControls enablePan={false} minDistance={8} maxDistance={15} minPolarAngle={0.7} maxPolarAngle={2.05} />
+      <OrbitControls enablePan={false} minDistance={8} maxDistance={16} minPolarAngle={0.48} maxPolarAngle={1.48} target={[0, 0.18, mode === 'surfaces' ? 0.8 : 0.35]} />
     </>
   )
 }
@@ -266,9 +271,9 @@ export function JetLab() {
         <div className="scene-mode jet-scene-mode" aria-label="Boeing 747 visualization mode">
           <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => setMode('flight')}>Four forces</button>
           <button type="button" aria-pressed={mode === 'fuel'} className={mode === 'fuel' ? 'is-active' : ''} onClick={() => setMode('fuel')}>Fuel + thrust</button>
-          <button type="button" aria-pressed={mode === 'tail'} className={mode === 'tail' ? 'is-active' : ''} onClick={() => setMode('tail')}>Tail controls</button>
+          <button type="button" aria-pressed={mode === 'surfaces'} className={mode === 'surfaces' ? 'is-active' : ''} onClick={() => setMode('surfaces')}>Control surfaces</button>
         </div>
-        <Canvas camera={{ position: [9.5, 5.5, 9], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
+        <Canvas key={mode} camera={JET_CAMERAS[mode]} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
           <JetScene pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} liftRatio={liftRatio} time={time}
             altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} mode={mode} />
         </Canvas>
@@ -331,9 +336,9 @@ export function JetLab() {
           <Note>The optional stabilizer tank shown on the full aircraft is not universal across every 747. On equipped passenger 747-400s it is a transfer tank; fuel moves forward before it joins the normal engine feed system.</Note>
         </section>
 
-        <section ref={tailSection} data-scene-mode="tail" className="lesson-section jet-system-section">
-          <h2>The elevator and rudder are at the tail</h2>
-          <p className="body-copy">Four elevator panels form the trailing edge of the horizontal stabilizers and create pitch. Upper and lower rudders form the trailing edge of the vertical stabilizer and create yaw.</p>
+        <section ref={tailSection} data-scene-mode="surfaces" className="lesson-section jet-system-section">
+          <h2>See every control surface separately</h2>
+          <p className="body-copy">Gold triple-slotted flaps and teal ailerons share each wing's trailing edge. At the tail, four purple elevator panels create pitch while separate upper and lower coral rudders create yaw.</p>
           <div className="control-group jet-tail-controls">
             <div className="group-title"><span>Isolated tail study</span><small>Surface motion enlarged</small></div>
             <Slider label="Elevator deflection" value={elevator} min={-18} max={18} step={1} unit="°" onChange={setElevator} accent="#76569b" />
@@ -350,6 +355,7 @@ export function JetLab() {
         <section className="lesson-section system-list">
           <h2>What the controls change</h2>
           <div><i className="system-icon system-icon--flaps" /><p><strong>Flaps reshape the wing.</strong><span>More curve makes more lift at low speed, but also much more drag.</span></p></div>
+          <div><i className="system-icon system-icon--aileron" /><p><strong>Ailerons roll the airplane.</strong><span>The left and right panels move oppositely, changing lift across the span and starting a bank.</span></p></div>
           <div><i className="system-icon system-icon--engines" /><p><strong>Engines replace lost energy.</strong><span>Thrust overcomes drag and keeps air moving rapidly over the wings.</span></p></div>
           <div><i className="system-icon system-icon--sweep" /><p><strong>Sweep delays compressibility.</strong><span>Angled wings help the airplane fly efficiently near the speed of sound.</span></p></div>
         </section>

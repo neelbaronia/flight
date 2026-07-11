@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber'
-import { Billboard, Line, Text } from '@react-three/drei'
+import { Billboard, Edges, Line, Text } from '@react-three/drei'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 
@@ -17,8 +17,47 @@ const ELEVATOR_SEGMENTS = [
   { x: 1.32, width: 0.52 },
 ]
 
+const CONTROL_COLORS = {
+  flap: '#e1b94f',
+  aileron: '#2d9eaa',
+  elevator: '#76569b',
+  rudder: '#e45845',
+  edge: '#304b53',
+  ghost: '#87979b',
+}
+
+// The 747-400 trailing edge reads root-to-tip as flap, aileron, flap, aileron.
+const TRAILING_EDGE_LAYOUT = [
+  { kind: 'flap', name: 'inboard', center: 1.25, width: 1.18 },
+  { kind: 'aileron', name: 'inboard', center: 2.18, width: 0.42 },
+  { kind: 'flap', name: 'outboard', center: 3.08, width: 1.04 },
+  { kind: 'aileron', name: 'outboard', center: 4.02, width: 0.58 },
+]
+
 const prefersReducedMotion = () => typeof window !== 'undefined'
   && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function OutlinedBox({ size, color, opacity = 1, edgeColor = CONTROL_COLORS.edge, castShadow = false }) {
+  return (
+    <mesh castShadow={castShadow}>
+      <boxGeometry args={size} />
+      <meshStandardMaterial
+        color={color}
+        roughness={0.67}
+        transparent={opacity < 1}
+        opacity={opacity}
+        depthWrite={opacity > 0.45}
+      />
+      <Edges
+        color={edgeColor}
+        scale={1.012}
+        threshold={12}
+        transparent={opacity < 1}
+        opacity={opacity < 0.5 ? 0.42 : 1}
+      />
+    </mesh>
+  )
+}
 
 function WingPlanform({ color, opacity = 1 }) {
   const shape = useMemo(() => {
@@ -37,7 +76,118 @@ function WingPlanform({ color, opacity = 1 }) {
     <mesh position={[0, 0.06, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
       <extrudeGeometry args={[shape, { depth: 0.1, bevelEnabled: false }]} />
       <meshStandardMaterial color={color} roughness={0.72} transparent={opacity < 1} opacity={opacity} depthWrite={opacity > 0.5} side={THREE.DoubleSide} />
+      <Edges color={CONTROL_COLORS.edge} threshold={12} transparent={opacity < 1} opacity={opacity < 0.5 ? 0.32 : 0.8} />
     </mesh>
+  )
+}
+
+function HorizontalStabilizer({ color, opacity }) {
+  const shape = useMemo(() => {
+    const stabilizer = new THREE.Shape()
+    stabilizer.moveTo(-1.72, -0.3)
+    stabilizer.lineTo(0, -0.42)
+    stabilizer.lineTo(1.72, -0.3)
+    stabilizer.lineTo(1.56, 0.12)
+    stabilizer.lineTo(0, 0.2)
+    stabilizer.lineTo(-1.56, 0.12)
+    stabilizer.closePath()
+    return stabilizer
+  }, [])
+
+  return (
+    <mesh position={[0, 0.12, 2.92]} rotation={[Math.PI / 2, 0, 0]}>
+      <extrudeGeometry args={[shape, { depth: 0.08, bevelEnabled: false }]} />
+      <meshStandardMaterial color={color} roughness={0.72} transparent={opacity < 1} opacity={opacity} depthWrite={opacity > 0.45} side={THREE.DoubleSide} />
+      <Edges color={CONTROL_COLORS.edge} threshold={12} transparent={opacity < 1} opacity={opacity < 0.5 ? 0.35 : 0.82} />
+    </mesh>
+  )
+}
+
+function FlapAssembly({ side, center, width, angle, opacity = 1, ghost = false }) {
+  return (
+    <group position={[side * center, 0.1, 0.72]} rotation={[angle, 0, 0]}>
+      {[0.08, 0.25, 0.42].map((z, index) => (
+        <group key={z} position={[0, index * -0.018, z]}>
+          <OutlinedBox
+            size={[width, 0.062, 0.13]}
+            color={ghost ? CONTROL_COLORS.ghost : CONTROL_COLORS.flap}
+            opacity={ghost ? 0.24 : opacity}
+            edgeColor={ghost ? '#76878b' : CONTROL_COLORS.edge}
+            castShadow={!ghost}
+          />
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function AileronPanel({ side, center, width, angle, opacity = 1, ghost = false }) {
+  return (
+    <group position={[side * center, 0.1, 0.93]} rotation={[angle, 0, 0]}>
+      <group position={[0, 0, 0.17]}>
+        <OutlinedBox
+          size={[width, 0.07, 0.27]}
+          color={ghost ? CONTROL_COLORS.ghost : CONTROL_COLORS.aileron}
+          opacity={ghost ? 0.24 : opacity}
+          edgeColor={ghost ? '#76878b' : CONTROL_COLORS.edge}
+          castShadow={!ghost}
+        />
+      </group>
+    </group>
+  )
+}
+
+function VerticalFin({ opacity }) {
+  const shape = useMemo(() => {
+    const fin = new THREE.Shape()
+    fin.moveTo(-0.08, 0)
+    fin.lineTo(0.58, 0)
+    fin.lineTo(0.2, 1.72)
+    fin.lineTo(-0.1, 1.5)
+    fin.closePath()
+    return fin
+  }, [])
+
+  return (
+    <mesh position={[0, 0.18, 3.08]} rotation={[0, Math.PI / 2, 0]}>
+      <extrudeGeometry args={[shape, { depth: 0.1, bevelEnabled: false }]} />
+      <meshStandardMaterial color="#e9cdc9" roughness={0.7} transparent={opacity < 1} opacity={opacity} depthWrite={opacity > 0.45} side={THREE.DoubleSide} />
+      <Edges color={CONTROL_COLORS.edge} threshold={12} transparent={opacity < 1} opacity={opacity < 0.5 ? 0.4 : 0.9} />
+    </mesh>
+  )
+}
+
+function RudderPanel({ height, chord, angle, opacity = 1, ghost = false }) {
+  const shape = useMemo(() => {
+    const panel = new THREE.Shape()
+    panel.moveTo(0, -height / 2)
+    panel.lineTo(-chord * 0.78, -height / 2)
+    panel.lineTo(-chord, height / 2)
+    panel.lineTo(0, height / 2)
+    panel.closePath()
+    return panel
+  }, [chord, height])
+
+  return (
+    <group rotation={[0, angle, 0]}>
+      <mesh rotation={[0, Math.PI / 2, 0]} castShadow={!ghost}>
+        <extrudeGeometry args={[shape, { depth: 0.075, bevelEnabled: false }]} />
+        <meshStandardMaterial
+          color={ghost ? CONTROL_COLORS.ghost : CONTROL_COLORS.rudder}
+          roughness={0.66}
+          transparent={ghost || opacity < 1}
+          opacity={ghost ? 0.24 : opacity}
+          depthWrite={!ghost && opacity > 0.45}
+          side={THREE.DoubleSide}
+        />
+        <Edges
+          color={ghost ? '#76878b' : CONTROL_COLORS.edge}
+          threshold={12}
+          transparent={ghost || opacity < 1}
+          opacity={ghost || opacity < 0.5 ? 0.42 : 1}
+        />
+      </mesh>
+    </group>
   )
 }
 
@@ -61,9 +211,9 @@ function FanRotor({ thrust, highlighted }) {
 }
 
 function Engine({ position, mode, thrust }) {
-  const faded = mode === 'tail'
+  const faded = mode === 'surfaces'
   const highlighted = mode === 'fuel'
-  const opacity = faded ? 0.16 : 1
+  const opacity = faded ? 0.24 : 1
   return (
     <group position={position} rotation={[Math.PI / 2, 0, 0]}>
       <mesh castShadow>
@@ -120,14 +270,25 @@ function FuelOverlay() {
 }
 
 export function JumboModel({ pitch, bank, flaps, elevator, rudder, thrust, time, mode = 'flight' }) {
-  const flapAngle = (flaps * Math.PI) / 150
+  const flapAngle = (flaps * Math.PI) / 180
   const elevatorAngle = (elevator * Math.PI) / 180
   const rudderAngle = (rudder * Math.PI) / 180
   const night = time === 'night'
   const inspecting = mode !== 'flight'
-  const shellOpacity = inspecting ? 0.18 : 1
+  const shellOpacity = mode === 'surfaces' ? 0.24 : inspecting ? 0.16 : 1
+  const controlOpacity = mode === 'fuel' ? 0.18 : 1
   const shellColor = night ? '#dfe8f2' : '#fff8e9'
-  const wingColor = mode === 'tail' ? '#d8c8ce' : '#f0a9bd'
+  const wingColor = '#f0a9bd'
+  const flapDeflected = Math.abs(flapAngle) > THREE.MathUtils.degToRad(0.5)
+  const elevatorDeflected = Math.abs(elevatorAngle) > THREE.MathUtils.degToRad(0.5)
+  const rudderDeflected = Math.abs(rudderAngle) > THREE.MathUtils.degToRad(0.5)
+
+  const aileronAngle = (side, name) => {
+    const command = THREE.MathUtils.clamp((bank / 24) * side, -1, 1)
+    const differentialLimit = command > 0 ? 18 : 11
+    const authority = name === 'outboard' ? 1 : 0.72
+    return THREE.MathUtils.degToRad(command * differentialLimit * authority)
+  }
 
   return (
     <group rotation={[(pitch * Math.PI) / 180, 0, (-bank * Math.PI) / 180]}>
@@ -140,50 +301,96 @@ export function JumboModel({ pitch, bank, flaps, elevator, rudder, thrust, time,
         <meshStandardMaterial color={shellColor} transparent={inspecting} opacity={shellOpacity} depthWrite={!inspecting} />
       </mesh>
       <WingPlanform color={wingColor} opacity={shellOpacity} />
-      <mesh position={[0, -0.03, 0.95]} rotation={[flapAngle, 0, 0]}>
-        <boxGeometry args={[6.5, 0.08, 0.48]} />
-        <meshStandardMaterial color="#dd7185" transparent={inspecting} opacity={inspecting ? 0.16 : 1} depthWrite={!inspecting} />
-      </mesh>
+      {[-1, 1].flatMap((side) => TRAILING_EDGE_LAYOUT.map((surface) => {
+        if (surface.kind === 'flap') {
+          return (
+            <group key={`${side}-${surface.name}-flap`}>
+              {mode === 'surfaces' && flapDeflected && (
+                <FlapAssembly side={side} center={surface.center} width={surface.width} angle={0} ghost />
+              )}
+              <FlapAssembly
+                side={side}
+                center={surface.center}
+                width={surface.width}
+                angle={flapAngle}
+                opacity={controlOpacity}
+              />
+              <mesh position={[side * surface.center, 0.105, 0.75]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.023, 0.023, surface.width * 0.96, 10]} />
+                <meshStandardMaterial color={CONTROL_COLORS.edge} transparent={controlOpacity < 1} opacity={controlOpacity} />
+              </mesh>
+            </group>
+          )
+        }
 
-      <mesh position={[0, 0.12, 2.92]}>
-        <boxGeometry args={[3.25, 0.09, 0.52]} />
-        <meshStandardMaterial color={mode === 'tail' ? '#e7d6da' : '#f0a9bd'} transparent={mode === 'fuel'} opacity={mode === 'fuel' ? 0.18 : 1} depthWrite={mode !== 'fuel'} />
-      </mesh>
-      {mode === 'tail' && ELEVATOR_SEGMENTS.map(({ x, width }) => (
-        <mesh key={`ghost-elevator-${x}`} position={[x, 0.12, 3.31]}>
-          <boxGeometry args={[width, 0.07, 0.28]} />
-          <meshStandardMaterial color="#9cabb0" transparent opacity={0.18} depthWrite={false} />
-        </mesh>
-      ))}
-      {ELEVATOR_SEGMENTS.map(({ x, width }) => (
-        <group key={x} position={[x, 0.12, 3.17]} rotation={[elevatorAngle, 0, 0]}>
-          <mesh position={[0, 0, 0.14]} castShadow>
-            <boxGeometry args={[width, 0.075, 0.28]} />
-            <meshStandardMaterial color={mode === 'tail' ? '#76569b' : '#f0a9bd'} transparent={mode === 'fuel'} opacity={mode === 'fuel' ? 0.18 : 1} />
-          </mesh>
-        </group>
-      ))}
-
-      <group position={[0, 0.9, 3.24]} rotation={[0.38, 0, 0]}>
-        <mesh position={[0, 0, -0.22]}>
-          <boxGeometry args={[0.12, 1.65, 0.72]} />
-          <meshStandardMaterial color={mode === 'tail' ? '#f2d9d2' : '#e45845'} transparent={mode === 'fuel'} opacity={mode === 'fuel' ? 0.18 : 1} />
-        </mesh>
-        {mode === 'tail' && [-0.38, 0.38].map((y) => (
-          <mesh key={`ghost-rudder-${y}`} position={[0, y, 0.28]}>
-            <boxGeometry args={[0.1, 0.7, 0.34]} />
-            <meshStandardMaterial color="#9cabb0" transparent opacity={0.18} depthWrite={false} />
-          </mesh>
-        ))}
-        {[-0.38, 0.38].map((y) => (
-          <group key={y} position={[0, y, 0.12]} rotation={[0, rudderAngle, 0]}>
-            <mesh position={[0, 0, 0.16]} castShadow>
-              <boxGeometry args={[0.1, 0.7, 0.34]} />
-              <meshStandardMaterial color={mode === 'tail' ? '#e45845' : '#e45845'} transparent={mode === 'fuel'} opacity={mode === 'fuel' ? 0.18 : 1} />
+        const angle = aileronAngle(side, surface.name)
+        const isDeflected = Math.abs(angle) > THREE.MathUtils.degToRad(0.5)
+        return (
+          <group key={`${side}-${surface.name}-aileron`}>
+            {mode === 'surfaces' && isDeflected && (
+              <AileronPanel side={side} center={surface.center} width={surface.width} angle={0} ghost />
+            )}
+            <AileronPanel
+              side={side}
+              center={surface.center}
+              width={surface.width}
+              angle={angle}
+              opacity={controlOpacity}
+            />
+            <mesh position={[side * surface.center, 0.105, 0.95]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.023, 0.023, surface.width * 0.94, 10]} />
+              <meshStandardMaterial color={CONTROL_COLORS.edge} transparent={controlOpacity < 1} opacity={controlOpacity} />
             </mesh>
           </group>
-        ))}
+        )
+      }))}
+
+      <HorizontalStabilizer color="#edcad5" opacity={shellOpacity} />
+      {mode === 'surfaces' && elevatorDeflected && ELEVATOR_SEGMENTS.map(({ x, width }) => (
+        <group key={`ghost-elevator-${x}`} position={[x, 0.12, 3.09]}>
+          <group position={[0, 0, 0.17]}>
+            <OutlinedBox size={[width, 0.07, 0.28]} color={CONTROL_COLORS.ghost} opacity={0.24} edgeColor="#76878b" />
+          </group>
+        </group>
+      ))}
+      {ELEVATOR_SEGMENTS.map(({ x, width }) => (
+        <group key={x} position={[x, 0.12, 3.09]} rotation={[elevatorAngle, 0, 0]}>
+          <group position={[0, 0, 0.17]}>
+            <OutlinedBox
+              size={[width, 0.075, 0.28]}
+              color={CONTROL_COLORS.elevator}
+              opacity={controlOpacity}
+              castShadow
+            />
+          </group>
+        </group>
+      ))}
+      {ELEVATOR_SEGMENTS.map(({ x, width }) => (
+        <mesh key={`elevator-hinge-${x}`} position={[x, 0.13, 3.1]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.024, 0.024, width * 0.92, 10]} />
+          <meshStandardMaterial color={CONTROL_COLORS.edge} transparent={controlOpacity < 1} opacity={controlOpacity} />
+        </mesh>
+      ))}
+
+      <VerticalFin opacity={shellOpacity} />
+      {mode === 'surfaces' && rudderDeflected && (
+        <>
+          <group position={[0, 0.57, 3.16]}><RudderPanel height={0.62} chord={0.36} angle={0} ghost /></group>
+          <group position={[0, 1.3, 3.16]}><RudderPanel height={0.8} chord={0.46} angle={0} ghost /></group>
+        </>
+      )}
+      <group position={[0, 0.57, 3.16]}>
+        <RudderPanel height={0.62} chord={0.36} angle={rudderAngle} opacity={controlOpacity} />
       </group>
+      <group position={[0, 1.3, 3.16]}>
+        <RudderPanel height={0.8} chord={0.46} angle={rudderAngle} opacity={controlOpacity} />
+      </group>
+      {[{ y: 0.57, height: 0.62 }, { y: 1.3, height: 0.8 }].map(({ y, height }) => (
+        <mesh key={`rudder-hinge-${y}`} position={[0.01, y, 3.16]}>
+          <cylinderGeometry args={[0.024, 0.024, height * 0.94, 10]} />
+          <meshStandardMaterial color={CONTROL_COLORS.edge} transparent={controlOpacity < 1} opacity={controlOpacity} />
+        </mesh>
+      ))}
 
       <mesh position={[0, -0.42, -0.6]}>
         <boxGeometry args={[0.83, 0.08, 5.45]} />
@@ -201,10 +408,12 @@ export function JumboModel({ pitch, bank, flaps, elevator, rudder, thrust, time,
       <mesh position={[0.25, 0.26, -3.46]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.1, 12]} /><meshBasicMaterial color="#254c59" transparent={inspecting} opacity={inspecting ? 0.18 : 1} /></mesh>
 
       {mode === 'fuel' && <FuelOverlay />}
-      {mode === 'tail' && (
+      {mode === 'surfaces' && (
         <>
-          <Billboard position={[-2.05, 0.35, 3.1]}><Text fontSize={0.2} color="#65448c" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>4 ELEVATORS · PITCH</Text></Billboard>
-          <Billboard position={[0.65, 1.8, 3.45]}><Text fontSize={0.2} color="#a43e33" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>UPPER + LOWER RUDDER · YAW</Text></Billboard>
+          <Billboard position={[-2.05, 0.72, 0.78]}><Text fontSize={0.18} color="#9b6b00" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>TRIPLE-SLOTTED FLAPS</Text></Billboard>
+          <Billboard position={[2.15, 0.62, 1.24]}><Text fontSize={0.18} color="#187481" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>AILERONS · ROLL</Text></Billboard>
+          <Billboard position={[-0.2, -0.45, 3.5]}><Text fontSize={0.18} color="#65448c" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>ELEVATORS · PITCH</Text></Billboard>
+          <Billboard position={[0.35, 2.08, 3.3]}><Text fontSize={0.18} color="#a43e33" outlineWidth={0.014} outlineColor="#fff5e7" renderOrder={20} material-depthTest={false}>2 RUDDERS · YAW</Text></Billboard>
         </>
       )}
     </group>
