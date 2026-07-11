@@ -105,10 +105,10 @@ function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, tim
   const atmosphere = JET_ATMOSPHERE[time]
   useFrame((state) => {
     if (!jetPosition.current || !jetAttitude.current) return
-    const altitudeOffset = clamp((altitude - JET_INITIAL_ALTITUDE) / 350, -2.25, 2.25)
+    const altitudeOffset = mode === 'flight' ? clamp((altitude - JET_INITIAL_ALTITUDE) / 350, -2.25, 2.25) : 0
     const targetY = altitudeOffset + Math.sin(state.clock.elapsedTime * 0.7) * 0.025
     jetPosition.current.position.y += (targetY - jetPosition.current.position.y) * 0.08
-    jetAttitude.current.rotation.x = clamp(verticalSpeed / 180, -0.22, 0.16)
+    jetAttitude.current.rotation.x = mode === 'flight' ? clamp(verticalSpeed / 180, -0.22, 0.16) : 0
   })
   return (
     <>
@@ -438,11 +438,13 @@ export function JetLab() {
           <JetScene pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} liftRatio={liftRatio} time={time}
             altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} mode={mode} cameraInputRef={cameraKeysRef} />
         </Canvas>
-        <div className="instrument-cluster">
-          <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>
-          <div className="attitude"><span style={{ transform: `rotate(${-bank}deg) translateY(${pitch * 1.5}px)` }} /><b>{bank > 2 ? 'BANK R' : bank < -2 ? 'BANK L' : 'WINGS LEVEL'}</b></div>
-          <div className="altimeter"><span>{Math.round(telemetry.altitude * 3.28084).toLocaleString()}</span><small>FEET</small><b>{state.toUpperCase()}</b></div>
-        </div>
+        {mode === 'flight' && (
+          <div className="instrument-cluster">
+            <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>
+            <div className="attitude"><span style={{ transform: `rotate(${-bank}deg) translateY(${pitch * 1.5}px)` }} /><b>{bank > 2 ? 'BANK R' : bank < -2 ? 'BANK L' : 'WINGS LEVEL'}</b></div>
+            <div className="altimeter"><span>{Math.round(telemetry.altitude * 3.28084).toLocaleString()}</span><small>FEET</small><b>{state.toUpperCase()}</b></div>
+          </div>
+        )}
       </section>
 
       <aside className="lesson-pane">
