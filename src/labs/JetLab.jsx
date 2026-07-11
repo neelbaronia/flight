@@ -5,6 +5,7 @@ import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY, liftCoefficient } from '../physics.js'
+import { FuelSystemStudyModel, JumboModel, TailControlStudyModel } from './JetModels.jsx'
 
 const JET_MASS = 285_000
 const JET_AREA = 511
@@ -12,6 +13,7 @@ const JET_CRUISE_DENSITY = 0.38
 const JET_INITIAL_ALTITUDE = 10_670
 const JET_MAX_THRUST = 250_000
 const JET_SIMULATION_RATE = 10
+const JET_MODE_SHORT = { flight: 'FOUR FORCES', fuel: 'FUEL + THRUST', tail: 'TAIL CONTROLS' }
 const JET_INITIAL_SPEED = Math.sqrt(
   (2 * JET_MASS * GRAVITY) / (JET_CRUISE_DENSITY * JET_AREA * liftCoefficient(2.5, 0.3)),
 )
@@ -85,48 +87,16 @@ function useJetSimulation(thrust, pitch, flaps, bank, resetSignal) {
   return telemetry
 }
 
-function Engine({ position }) {
-  return (
-    <group position={position} rotation={[Math.PI / 2, 0, 0]}>
-      <mesh castShadow><cylinderGeometry args={[0.34, 0.46, 1.05, 24]} /><meshStandardMaterial color="#f2c54a" roughness={0.5} /></mesh>
-      <mesh position={[0, -0.53, 0]}><torusGeometry args={[0.34, 0.07, 10, 24]} /><meshStandardMaterial color="#9d4438" metalness={0.25} /></mesh>
-      <mesh position={[0, -0.55, 0]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.3, 20]} /><meshStandardMaterial color="#304b53" /></mesh>
-    </group>
-  )
-}
-
-function JumboModel({ pitch, bank, flaps, time }) {
-  const flapAngle = (flaps * Math.PI) / 150
-  const night = time === 'night'
-  return (
-    <group rotation={[(bank * Math.PI) / 180, 0, (-pitch * Math.PI) / 180]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><capsuleGeometry args={[0.62, 6.1, 12, 28]} /><meshStandardMaterial color={night ? '#dfe8f2' : '#fff8e9'} roughness={0.58} /></mesh>
-      <mesh position={[0, 0.32, -1.4]} rotation={[Math.PI / 2, 0, 0]}><capsuleGeometry args={[0.5, 1.7, 8, 20]} /><meshStandardMaterial color={night ? '#dfe8f2' : '#fff8e9'} /></mesh>
-      <mesh position={[0, 0.03, 0.3]} castShadow><boxGeometry args={[8.7, 0.13, 1.5]} /><meshStandardMaterial color="#f0a9bd" roughness={0.72} /></mesh>
-      <mesh position={[0, -0.03, 0.95]} rotation={[flapAngle, 0, 0]}><boxGeometry args={[6.5, 0.08, 0.48]} /><meshStandardMaterial color="#dd7185" /></mesh>
-      <mesh position={[0, 0.15, 3.05]}><boxGeometry args={[3.25, 0.1, 0.8]} /><meshStandardMaterial color="#f0a9bd" /></mesh>
-      <mesh position={[0, 0.82, 3.28]} rotation={[0.38, 0, 0]}><boxGeometry args={[0.12, 1.8, 1.15]} /><meshStandardMaterial color="#e45845" /></mesh>
-      <mesh position={[0, -0.42, -0.6]}><boxGeometry args={[0.83, 0.08, 5.45]} /><meshStandardMaterial color="#e45845" /></mesh>
-      {[[-2.45, -0.42, 0.1], [-1.2, -0.46, -0.25], [1.2, -0.46, -0.25], [2.45, -0.42, 0.1]].map((position, i) => <Engine key={i} position={position} />)}
-      {Array.from({ length: 14 }, (_, i) => (
-        <mesh key={i} position={[(i % 2 ? 1 : -1) * 0.6, 0.14, -2.5 + Math.floor(i / 2) * 0.65]}>
-          <circleGeometry args={[0.035, 10]} /><meshStandardMaterial color={night ? '#fff2a8' : '#245c6b'} emissive={night ? '#ffd968' : '#000000'} emissiveIntensity={night ? 2 : 0} /></mesh>
-      ))}
-      <mesh position={[-0.25, 0.26, -3.46]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.1, 12]} /><meshBasicMaterial color="#254c59" /></mesh>
-      <mesh position={[0.25, 0.26, -3.46]} rotation={[Math.PI / 2, 0, 0]}><circleGeometry args={[0.1, 12]} /><meshBasicMaterial color="#254c59" /></mesh>
-    </group>
-  )
-}
-
-function JetScene({ pitch, bank, flaps, liftRatio, time, altitude, verticalSpeed, engineThrust, drag }) {
-  const jet = useRef()
+function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, time, altitude, verticalSpeed, engineThrust, drag, mode }) {
+  const jetPosition = useRef()
+  const jetAttitude = useRef()
   const atmosphere = JET_ATMOSPHERE[time]
   useFrame((state) => {
-    if (!jet.current) return
+    if (!jetPosition.current || !jetAttitude.current) return
     const altitudeOffset = clamp((altitude - JET_INITIAL_ALTITUDE) / 350, -2.25, 2.25)
     const targetY = altitudeOffset + Math.sin(state.clock.elapsedTime * 0.7) * 0.025
-    jet.current.position.y += (targetY - jet.current.position.y) * 0.08
-    jet.current.rotation.x = clamp(verticalSpeed / 180, -0.22, 0.16)
+    jetPosition.current.position.y += (targetY - jetPosition.current.position.y) * 0.08
+    jetAttitude.current.rotation.x = clamp(verticalSpeed / 180, -0.22, 0.16)
   })
   return (
     <>
@@ -138,13 +108,89 @@ function JetScene({ pitch, bank, flaps, liftRatio, time, altitude, verticalSpeed
       <Cloud position={[5, -2, 2]} scale={0.7} color={atmosphere.cloud} opacity={time === 'night' ? 0.72 : 1} />
       {time === 'evening' && <mesh position={[-8, 4.5, -14]}><sphereGeometry args={[0.75, 24, 18]} /><meshBasicMaterial color="#ffd0ac" /></mesh>}
       {time === 'night' && <><Stars radius={28} depth={14} count={700} factor={2.2} saturation={0.15} fade speed={0.2} /><mesh position={[-8, 5, -15]}><sphereGeometry args={[0.52, 24, 18]} /><meshBasicMaterial color="#dce8ff" /></mesh></>}
-      <group ref={jet}><JumboModel pitch={pitch} bank={bank} flaps={flaps} time={time} /></group>
-      <ForceArrow from={[0, 0.7, 0]} direction={[0, 1, 0]} length={Math.min(2.5, 0.7 + liftRatio * 0.8)} color="#e6543f" label="LIFT" />
-      <ForceArrow from={[0, -0.6, 0]} direction={[0, -1, 0]} length={1.5} color="#2d6171" label="WEIGHT" />
-      <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.25 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`THRUST · ${formatForce(engineThrust)}`} />
-      <ForceArrow from={[1.4, 0.1, 0.5]} direction={[0, 0, 1]} length={0.25 + Math.min(1.7, drag / 140_000)} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />
+      <group ref={jetPosition}>
+        <group ref={jetAttitude}>
+          <JumboModel pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} time={time} mode={mode} />
+          <group rotation={[(pitch * Math.PI) / 180, 0, (-bank * Math.PI) / 180]}>
+            {mode === 'flight' && <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.25 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`THRUST · ${formatForce(engineThrust)}`} />}
+            {mode === 'fuel' && <ForceArrow from={[0, -0.15, -2.4]} direction={[0, 0, -1]} length={0.5 + (engineThrust / JET_MAX_THRUST) * 1.85} color="#f4cd4f" label={`FORWARD THRUST · ${formatForce(engineThrust)}`} />}
+          </group>
+          {mode === 'flight' && <ForceArrow from={[1.4, 0.1, 0.5]} direction={[0, 0, 1]} length={0.25 + Math.min(1.7, drag / 140_000)} color="#76569b" label={`DRAG · ${formatForce(drag)}`} />}
+        </group>
+        {mode === 'flight' && (
+          <>
+            <ForceArrow from={[0, 0.7, 0]} direction={[0, 1, 0]} length={Math.min(2.5, 0.7 + liftRatio * 0.8)} color="#e6543f" label="LIFT" />
+            <ForceArrow from={[0, -0.6, 0]} direction={[0, -1, 0]} length={1.5} color="#2d6171" label="WEIGHT" />
+          </>
+        )}
+      </group>
       <OrbitControls enablePan={false} minDistance={8} maxDistance={15} minPolarAngle={0.7} maxPolarAngle={2.05} />
     </>
+  )
+}
+
+function JetSystemStudy({ type, stages, orientation, ariaLabel, camera, animate = false, readout, children }) {
+  const container = useRef()
+  const [loaded, setLoaded] = useState(() => typeof IntersectionObserver === 'undefined')
+
+  useEffect(() => {
+    if (loaded || !container.current || !('IntersectionObserver' in window)) return undefined
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      setLoaded(true)
+      observer.disconnect()
+    }, { rootMargin: '48px 0px', threshold: 0.01 })
+    observer.observe(container.current)
+    return () => observer.disconnect()
+  }, [loaded])
+
+  return (
+    <div ref={container} className={`jet-system-study jet-system-study--${type}`} role="img" aria-label={ariaLabel}>
+      <div className="jet-system-study__orientation"><span>{orientation}</span><span>SCHEMATIC · NOT TO SCALE</span></div>
+      <div className="jet-system-study__stages" aria-hidden="true" style={{ '--jet-stage-count': stages.length }}>
+        {stages.map((stage, index) => <span key={stage}><i>{index + 1}</i>{stage}</span>)}
+      </div>
+      {loaded && (
+        <Canvas orthographic camera={camera} frameloop={animate ? 'always' : 'demand'} dpr={[1, 1.5]}>
+          <ambientLight intensity={1.9} />
+          <directionalLight position={[4, 6, 6]} intensity={2.2} color="#fff6e4" />
+          <directionalLight position={[-4, 1, -3]} intensity={0.7} color="#9fd3dc" />
+          {children}
+        </Canvas>
+      )}
+      <div className="jet-system-study__readout">{readout}</div>
+    </div>
+  )
+}
+
+function FuelSystemStudy({ thrust }) {
+  return (
+    <JetSystemStudy
+      type="fuel"
+      stages={['WING + CENTER TANKS', 'BOOST PUMPS + CROSSFEED', 'ENGINE PUMPS + FUEL CONTROL', 'NOZZLES + COMBUSTOR', 'FAN + CORE AIR BACK']}
+      orientation="747-400 FUEL MAP → ONE ENGINE CUTAWAY"
+      ariaLabel={`Simplified 747-400 fuel system at ${thrust} percent thrust: wing and center tanks feed boost pumps and a crossfeed manifold, engine pumps and fuel control meter it to the combustor, and the fan and core accelerate air backward`}
+      camera={{ position: [0, 0.25, 8], zoom: 58 }}
+      animate
+      readout={<><span><i className="jet-swatch jet-swatch--main" />WING TANKS</span><span><i className="jet-swatch jet-swatch--fuel" />CENTER TANK</span><span><i className="jet-swatch jet-swatch--air" />BYPASS AIR</span><span><i className="jet-swatch jet-swatch--hot" />HOT CORE</span><output>{thrust}% THRUST</output></>}
+    >
+      <FuelSystemStudyModel thrust={thrust} />
+    </JetSystemStudy>
+  )
+}
+
+function TailControlStudy({ elevator, rudder }) {
+  return (
+    <JetSystemStudy
+      type="tail"
+      stages={['CONTROL COLUMN / PEDALS', 'CABLE + QUADRANT', 'HYDRAULIC ACTUATOR', 'MOVING TAIL SURFACE']}
+      orientation="TAIL SURFACES SEPARATED FOR INSPECTION"
+      ariaLabel={`Isolated 747 tail controls: four elevator panels at ${elevator.toFixed(1)} degrees control pitch, and upper and lower rudders at ${rudder.toFixed(1)} degrees control yaw`}
+      camera={{ position: [4.2, 3.1, 6.2], zoom: 62 }}
+      readout={<><span className="jet-tail-readout jet-tail-readout--elevator">4 ELEVATORS · {elevator >= 0 ? '+' : ''}{elevator.toFixed(1)}°</span><span className="jet-tail-readout jet-tail-readout--rudder">2 RUDDERS · {rudder >= 0 ? '+' : ''}{rudder.toFixed(1)}°</span></>}
+    >
+      <TailControlStudyModel elevator={elevator} rudder={rudder} />
+    </JetSystemStudy>
   )
 }
 
@@ -153,7 +199,13 @@ export function JetLab() {
   const [pitch, setPitch] = useState(2.5)
   const [flaps, setFlaps] = useState(0)
   const [bank, setBank] = useState(0)
+  const [elevator, setElevator] = useState(0)
+  const [rudder, setRudder] = useState(0)
+  const [mode, setMode] = useState('flight')
   const [resetSignal, setResetSignal] = useState(0)
+  const fuelSection = useRef()
+  const tailSection = useRef()
+  const lastAutoMode = useRef(null)
   const time = useTimeOfDay()
   const telemetry = useJetSimulation(thrust, pitch, flaps, bank, resetSignal)
   const speed = telemetry.speed
@@ -177,15 +229,48 @@ export function JetLab() {
     }
   }, [time])
 
-  const reset = () => { setThrust(72); setPitch(2.5); setFlaps(0); setBank(0); setResetSignal((signal) => signal + 1) }
+  useEffect(() => {
+    if (!('IntersectionObserver' in window)) return undefined
+    const sections = [fuelSection.current, tailSection.current].filter(Boolean)
+    const visibility = new Map(sections.map((section) => [section, 0]))
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => visibility.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0))
+      const active = sections
+        .map((target) => ({ target, intersectionRatio: visibility.get(target) || 0 }))
+        .filter((entry) => entry.intersectionRatio > 0)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      const nextMode = active?.target.dataset.sceneMode || 'flight'
+      if (lastAutoMode.current !== nextMode) {
+        lastAutoMode.current = nextMode
+        setMode(nextMode)
+      }
+    }, { threshold: [0.01, 0.25], rootMargin: '-22% 0px -44% 0px' })
+    sections.forEach((section) => observer.observe(section))
+    return () => observer.disconnect()
+  }, [])
+
+  const reset = () => {
+    setThrust(72)
+    setPitch(2.5)
+    setFlaps(0)
+    setBank(0)
+    setElevator(0)
+    setRudder(0)
+    setResetSignal((signal) => signal + 1)
+  }
 
   return (
     <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
-      <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model">
-        <div className="scene-toolbar"><SceneBadge>{state} · FL{flightLevel}</SceneBadge><ResetButton onClick={reset} /></div>
+      <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model" data-scene-mode={mode} data-testid="jet-simulator">
+        <div className="scene-toolbar"><SceneBadge>FL{flightLevel} · {JET_MODE_SHORT[mode]}</SceneBadge><ResetButton onClick={reset} /></div>
+        <div className="scene-mode jet-scene-mode" aria-label="Boeing 747 visualization mode">
+          <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => setMode('flight')}>Four forces</button>
+          <button type="button" aria-pressed={mode === 'fuel'} className={mode === 'fuel' ? 'is-active' : ''} onClick={() => setMode('fuel')}>Fuel + thrust</button>
+          <button type="button" aria-pressed={mode === 'tail'} className={mode === 'tail' ? 'is-active' : ''} onClick={() => setMode('tail')}>Tail controls</button>
+        </div>
         <Canvas camera={{ position: [9.5, 5.5, 9], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <JetScene pitch={pitch} bank={bank} flaps={flaps} liftRatio={liftRatio} time={time}
-            altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} />
+          <JetScene pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} liftRatio={liftRatio} time={time}
+            altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} mode={mode} />
         </Canvas>
         <div className="instrument-cluster">
           <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>
@@ -202,7 +287,7 @@ export function JetLab() {
         <div className="control-group">
           <div className="group-title"><span>Flight deck</span><small>Hold altitude while banking</small></div>
           <Slider label="Engine thrust" value={thrust} min={0} max={100} unit="%" onChange={setThrust} />
-          <Slider label="Pitch" value={pitch} min={-2} max={9} step={0.5} unit="°" onChange={setPitch} accent="#6e4c9b" />
+          <Slider label="Angle of attack (simplified)" value={pitch} min={-2} max={9} step={0.5} unit="°" onChange={setPitch} accent="#6e4c9b" />
           <Slider label="Flaps" value={flaps} min={0} max={30} unit="°" onChange={setFlaps} accent="#27829c" />
           <Slider label="Bank angle" value={bank} min={-35} max={35} unit="°" onChange={setBank} accent="#d38d27" />
         </div>
@@ -232,6 +317,34 @@ export function JetLab() {
             L<sub>vertical</sub> = L cos(θ)
           </Equation>
           <Note>Bank to 30° and watch the status. To stay level, a pilot gently increases pitch, creating enough extra lift to replace the part used for turning.</Note>
+        </section>
+
+        <section ref={fuelSection} data-scene-mode="fuel" className="lesson-section jet-system-section">
+          <h2>From sealed wing tanks to thrust</h2>
+          <p className="body-copy">This simplified 747-400 map shows fuel inside structural bays in the wings and center wing box. Electric boost pumps pressurize it, and a crossfeed manifold can route fuel toward any of the four engines.</p>
+          <FuelSystemStudy thrust={thrust} />
+          <p className="jet-system-principle"><strong>Fuel supplies energy. Air carries most of the momentum.</strong> At the pylon, an engine shutoff valve passes fuel to engine-driven pumps and a metering unit, then to spray nozzles in the combustor. The hot gas turns turbines connected to the compressor and fan; the fan accelerates a much larger bypass stream backward.</p>
+          <Equation caption="The fan and hot core both add rearward momentum to the airflow. The equal reaction is forward thrust."
+            values={`${thrust}% command = ${formatForce(engineThrust)} simulated cruise thrust`}>
+            T ≈ ṁ<sub>air</sub> (V<sub>exit</sub> − V<sub>flight</sub>)
+          </Equation>
+          <Note>The optional stabilizer tank shown on the full aircraft is not universal across every 747. On equipped passenger 747-400s it is a transfer tank; fuel moves forward before it joins the normal engine feed system.</Note>
+        </section>
+
+        <section ref={tailSection} data-scene-mode="tail" className="lesson-section jet-system-section">
+          <h2>The elevator and rudder are at the tail</h2>
+          <p className="body-copy">Four elevator panels form the trailing edge of the horizontal stabilizers and create pitch. Upper and lower rudders form the trailing edge of the vertical stabilizer and create yaw.</p>
+          <div className="control-group jet-tail-controls">
+            <div className="group-title"><span>Isolated tail study</span><small>Surface motion enlarged</small></div>
+            <Slider label="Elevator deflection" value={elevator} min={-18} max={18} step={1} unit="°" onChange={setElevator} accent="#76569b" />
+            <Slider label="Rudder deflection" value={rudder} min={-22} max={22} step={1} unit="°" onChange={setRudder} accent="#e45845" />
+          </div>
+          <TailControlStudy elevator={elevator} rudder={rudder} />
+          <div className="system-list jet-tail-functions">
+            <div><i className="system-icon system-icon--elevator" /><p><strong>Elevators make a pitching moment.</strong><span>The four panels move together. Their tail force rotates the nose up or down around the wing-to-wing axis.</span></p></div>
+            <div><i className="system-icon system-icon--rudder" /><p><strong>Rudders make a yawing moment.</strong><span>The upper and lower sections move on the fin, creating a sideways tail force that aligns the nose.</span></p></div>
+          </div>
+          <Note>These sliders isolate the hydraulic control surfaces so their movement is easy to inspect; they do not replace the simplified angle-of-attack and bank model above. The movable horizontal stabilizer handles slower pitch trim.</Note>
         </section>
 
         <section className="lesson-section system-list">

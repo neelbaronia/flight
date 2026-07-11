@@ -10,6 +10,7 @@ export function Slider({ label, value, min, max, step = 1, unit = '', onChange, 
       </span>
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}
