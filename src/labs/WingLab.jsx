@@ -1,9 +1,10 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Line, OrbitControls, Text } from '@react-three/drei'
+import { Line, Text } from '@react-three/drei'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { ForceArrow, StudioLights } from '../components/SceneKit.jsx'
+import { ForceArrow, KeyboardOrbitControls, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, ForceLegend, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
+import { useArrowOrbit } from '../hooks/useArrowOrbit.js'
 import { clamp, flightForces, formatForce } from '../physics.js'
 
 const FLOW_LANES = [-1.55, -0.9, 0.88, 1.5]
@@ -346,7 +347,7 @@ function SurfacePressure({ liftPositive, angle, camber }) {
   )
 }
 
-function WingScene({ speed, angle, camber, lift, drag, cl, stalled, viewMode, packetRun }) {
+function WingScene({ speed, angle, camber, lift, drag, cl, stalled, viewMode, packetRun, cameraInputRef }) {
   const liftLength = Math.min(2.4, 0.5 + Math.abs(lift) / 4500)
   const dragLength = Math.min(2.6, 1.35 + drag / 2100)
   return (
@@ -362,7 +363,7 @@ function WingScene({ speed, angle, camber, lift, drag, cl, stalled, viewMode, pa
       {viewMode === 'geometry' && <AngleGuide angle={angle} camber={camber} />}
       <ForceArrow from={[0, 0.48, 0]} direction={[0, lift >= 0 ? 1 : -1, 0]} length={liftLength} color="#e6543f" label={`LIFT · ${formatForce(lift)}`} />
       <ForceArrow from={[3.6, 0.62, 1.9]} direction={[-1, 0, 0]} length={dragLength} color="#304e54" />
-      <OrbitControls enablePan={false} target={[0, -0.35, 0]} minDistance={6.5} maxDistance={11} minPolarAngle={0.8} maxPolarAngle={2.1} />
+      <KeyboardOrbitControls inputRef={cameraInputRef} enablePan={false} target={[0, -0.35, 0]} minDistance={6.5} maxDistance={11} minPolarAngle={0.8} maxPolarAngle={2.1} />
     </>
   )
 }
@@ -377,6 +378,13 @@ export function WingLab() {
   const pressureSection = useRef()
   const packetSection = useRef()
   const lastAutoMode = useRef(null)
+  const {
+    rootRef: cameraRootRef,
+    keysRef: cameraKeysRef,
+    onKeyDown: handleCameraKeyDown,
+    onBlur: handleCameraBlur,
+    onPointerDown: handleCameraPointerDown,
+  } = useArrowOrbit({ autoFocus: true })
   const area = 16
   const stallAngle = 16 - camber * 0.25
   const zeroLiftAngle = -((camber * 0.055) / (2 * Math.PI)) * (180 / Math.PI)
@@ -404,30 +412,50 @@ export function WingLab() {
     return () => observer.disconnect()
   }, [])
 
+  const focusCamera = () => requestAnimationFrame(() => cameraRootRef.current?.focus({ preventScroll: true }))
+
+  const chooseViewMode = (nextMode) => {
+    setViewMode(nextMode)
+    if (nextMode === 'packets') setPacketRun((run) => run + 1)
+    focusCamera()
+  }
+
   const reset = () => {
     setSpeed(28)
     setAngle(6)
     setCamber(4)
+    focusCamera()
   }
 
   return (
     <div className="lab-layout lab-layout--painted-notes">
-      <section className="demo-pane demo-pane--wing" aria-label="Interactive wing model">
+      <section
+        ref={cameraRootRef}
+        className="demo-pane demo-pane--wing interactive-scene"
+        aria-label="Interactive wing model"
+        aria-describedby="wing-camera-instructions"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
+        tabIndex={0}
+        onKeyDown={handleCameraKeyDown}
+        onBlur={handleCameraBlur}
+        onPointerDown={handleCameraPointerDown}
+      >
+        <span id="wing-camera-instructions" className="sr-only">Use Left and Right Arrow to orbit around the wing. Use Up and Down Arrow to raise or lower the viewpoint. Drag to orbit and pinch or scroll to zoom.</span>
         <div className="scene-toolbar">
           <SceneBadge>{stalled ? 'Airflow separated: stall' : 'Airflow attached'}</SceneBadge>
           <ResetButton onClick={reset} />
         </div>
         <div className="scene-mode" aria-label="Wing visualization mode">
-          <button type="button" className={viewMode === 'packets' ? 'is-active' : ''} onClick={() => { setViewMode('packets'); setPacketRun((run) => run + 1) }}>Air packets</button>
-          <button type="button" className={viewMode === 'pressure' ? 'is-active' : ''} onClick={() => setViewMode('pressure')}>Surface pressure</button>
-          <button type="button" className={viewMode === 'geometry' ? 'is-active' : ''} onClick={() => setViewMode('geometry')}>Angle &amp; shape</button>
+          <button type="button" aria-pressed={viewMode === 'packets'} className={viewMode === 'packets' ? 'is-active' : ''} onClick={() => chooseViewMode('packets')}>Air packets</button>
+          <button type="button" aria-pressed={viewMode === 'pressure'} className={viewMode === 'pressure' ? 'is-active' : ''} onClick={() => chooseViewMode('pressure')}>Surface pressure</button>
+          <button type="button" aria-pressed={viewMode === 'geometry'} className={viewMode === 'geometry' ? 'is-active' : ''} onClick={() => chooseViewMode('geometry')}>Angle &amp; shape</button>
         </div>
         <div className="motion-reference" aria-label="Motion reference frame">
           <span><small>Wing motion</small><b>{speed} m/s →</b></span>
           <span><small>Relative airflow</small><b>← {speed} m/s</b></span>
         </div>
         <Canvas camera={{ position: [7, 4, 7], fov: 42 }} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
-          <WingScene speed={speed} angle={angle} camber={camber} lift={forces.lift} drag={forces.drag} cl={forces.cl} stalled={stalled} viewMode={viewMode} packetRun={packetRun} />
+          <WingScene speed={speed} angle={angle} camber={camber} lift={forces.lift} drag={forces.drag} cl={forces.cl} stalled={stalled} viewMode={viewMode} packetRun={packetRun} cameraInputRef={cameraKeysRef} />
         </Canvas>
         <ForceLegend items={[{ color: '#e6543f', label: 'Lift' }, { color: '#304e54', label: 'Drag' }, { color: '#3e999c', label: 'Air' }]} />
         <div className="drag-callout" aria-label={`Drag force ${formatForce(forces.drag)}`}>

@@ -1,4 +1,4 @@
-import { Billboard, Line, Text } from '@react-three/drei'
+import { Billboard, Line, OrbitControls, Text } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -18,6 +18,37 @@ export function StudioLights({ time = 'day' }) {
       <directionalLight position={[-8, 3, -5]} intensity={lighting.fill} color={lighting.fillColor} />
     </>
   )
+}
+
+export function KeyboardOrbitControls({
+  inputRef,
+  minPolarAngle = 0.4,
+  maxPolarAngle = Math.PI - 0.4,
+  orbitSpeed = 0.9,
+  elevationSpeed = 0.65,
+  ...props
+}) {
+  const controls = useRef()
+
+  useFrame((_, delta) => {
+    if (!controls.current || !inputRef?.current) return
+    const horizontal = (inputRef.current.right ? 1 : 0) - (inputRef.current.left ? 1 : 0)
+    const vertical = (inputRef.current.up ? 1 : 0) - (inputRef.current.down ? 1 : 0)
+    if (!horizontal && !vertical) return
+    const frameDelta = Math.min(delta, 0.1)
+    if (horizontal) {
+      controls.current.setAzimuthalAngle(
+        controls.current.getAzimuthalAngle() + horizontal * orbitSpeed * frameDelta,
+      )
+    }
+    if (vertical) {
+      const nextPolar = controls.current.getPolarAngle() - vertical * elevationSpeed * frameDelta
+      controls.current.setPolarAngle(Math.max(minPolarAngle, Math.min(maxPolarAngle, nextPolar)))
+    }
+    controls.current.update()
+  })
+
+  return <OrbitControls ref={controls} minPolarAngle={minPolarAngle} maxPolarAngle={maxPolarAngle} {...props} />
 }
 
 export function Ground({ color = '#f4d87a', size = 50, y = -2.5 }) {

@@ -1,11 +1,13 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Stars } from '@react-three/drei'
+import { Stars } from '@react-three/drei'
 import { useEffect, useRef, useState } from 'react'
-import { Cloud, ForceArrow, StudioLights } from '../components/SceneKit.jsx'
+import { Cloud, ForceArrow, KeyboardOrbitControls, StudioLights } from '../components/SceneKit.jsx'
 import { Equation, Metric, Note, ResetButton, SceneBadge, SectionHeader, Slider } from '../components/LabUI.jsx'
+import { useArrowOrbit } from '../hooks/useArrowOrbit.js'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY, liftCoefficient } from '../physics.js'
-import { FuelSystemStudyModel, JumboModel, TailControlStudyModel } from './JetModels.jsx'
+import { ElevatorStudyModel, FlapStudyModel, RudderStudyModel } from './JetControlStudies.jsx'
+import { FuelSystemStudyModel, JumboModel } from './JetModels.jsx'
 
 const JET_MASS = 285_000
 const JET_AREA = 511
@@ -14,6 +16,11 @@ const JET_INITIAL_ALTITUDE = 10_670
 const JET_MAX_THRUST = 250_000
 const JET_SIMULATION_RATE = 10
 const JET_MODE_SHORT = { flight: 'FOUR FORCES', fuel: 'FUEL + THRUST', surfaces: 'CONTROL SURFACES' }
+const JET_SURFACE_STUDIES = [
+  { id: 'flaps', label: 'Flaps', accent: '#d49a27' },
+  { id: 'elevators', label: 'Elevators', accent: '#76569b' },
+  { id: 'rudders', label: 'Rudders', accent: '#e45845' },
+]
 const JET_CAMERAS = {
   flight: { position: [9.5, 6.8, 9.5], fov: 38 },
   fuel: { position: [9.2, 6.4, 10], fov: 38 },
@@ -92,7 +99,7 @@ function useJetSimulation(thrust, pitch, flaps, bank, resetSignal) {
   return telemetry
 }
 
-function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, time, altitude, verticalSpeed, engineThrust, drag, mode }) {
+function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, time, altitude, verticalSpeed, engineThrust, drag, mode, cameraInputRef }) {
   const jetPosition = useRef()
   const jetAttitude = useRef()
   const atmosphere = JET_ATMOSPHERE[time]
@@ -129,7 +136,7 @@ function JetScene({ pitch, bank, flaps, elevator, rudder, thrust, liftRatio, tim
           </>
         )}
       </group>
-      <OrbitControls enablePan={false} minDistance={8} maxDistance={16} minPolarAngle={0.48} maxPolarAngle={1.48} target={[0, 0.18, mode === 'surfaces' ? 0.8 : 0.35]} />
+      <KeyboardOrbitControls inputRef={cameraInputRef} enablePan={false} minDistance={8} maxDistance={16} minPolarAngle={0.48} maxPolarAngle={1.48} target={[0, 0.18, mode === 'surfaces' ? 0.8 : 0.35]} />
     </>
   )
 }
@@ -184,17 +191,51 @@ function FuelSystemStudy({ thrust }) {
   )
 }
 
-function TailControlStudy({ elevator, rudder }) {
+function SurfaceControlStudy({ study, flaps, elevator, rudder }) {
+  const config = {
+    flaps: {
+      type: 'surface-flaps',
+      stages: ['FLAP LEVER', 'TRACKS MOVE AFT', '3 PANELS OPEN SLOTS', 'MORE LIFT + DRAG'],
+      orientation: 'MAIN WING · TRAILING EDGE',
+      ariaLabel: `Isolated 747 triple-slotted flap assembly deployed to ${flaps} degrees, moving aft and down to increase wing camber, lift, and drag`,
+      camera: { position: [5, 4.5, 6], zoom: 65 },
+      label: 'TRIPLE-SLOTTED FLAPS',
+      value: flaps,
+      model: <FlapStudyModel flaps={flaps} />,
+    },
+    elevators: {
+      type: 'surface-elevators',
+      stages: ['CONTROL COLUMN', 'CABLE + HYDRAULICS', '4 ELEVATORS HINGE', 'NOSE PITCHES'],
+      orientation: 'HORIZONTAL TAIL · TRAILING EDGE',
+      ariaLabel: `Isolated 747 horizontal tail with four elevator panels deflected to ${elevator.toFixed(1)} degrees to create a pitching moment`,
+      camera: { position: [5, 4.5, 6], zoom: 65 },
+      label: '4 ELEVATORS · PITCH',
+      value: elevator,
+      model: <ElevatorStudyModel elevator={elevator} />,
+    },
+    rudders: {
+      type: 'surface-rudders',
+      stages: ['RUDDER PEDALS', 'CABLE + HYDRAULICS', '2 RUDDERS HINGE', 'NOSE YAWS'],
+      orientation: 'VERTICAL TAIL · TRAILING EDGE',
+      ariaLabel: `Isolated 747 vertical tail with upper and lower rudders deflected to ${rudder.toFixed(1)} degrees to create a yawing moment`,
+      camera: { position: [4, 2.8, 6], zoom: 75 },
+      label: '2 RUDDERS · YAW',
+      value: rudder,
+      model: <RudderStudyModel rudder={rudder} />,
+    },
+  }[study]
+
   return (
     <JetSystemStudy
-      type="tail"
-      stages={['CONTROL COLUMN / PEDALS', 'CABLE + QUADRANT', 'HYDRAULIC ACTUATOR', 'MOVING TAIL SURFACE']}
-      orientation="TAIL SURFACES SEPARATED FOR INSPECTION"
-      ariaLabel={`Isolated 747 tail controls: four elevator panels at ${elevator.toFixed(1)} degrees control pitch, and upper and lower rudders at ${rudder.toFixed(1)} degrees control yaw`}
-      camera={{ position: [4.2, 3.1, 6.2], zoom: 62 }}
-      readout={<><span className="jet-tail-readout jet-tail-readout--elevator">4 ELEVATORS · {elevator >= 0 ? '+' : ''}{elevator.toFixed(1)}°</span><span className="jet-tail-readout jet-tail-readout--rudder">2 RUDDERS · {rudder >= 0 ? '+' : ''}{rudder.toFixed(1)}°</span></>}
+      key={study}
+      type={config.type}
+      stages={config.stages}
+      orientation={config.orientation}
+      ariaLabel={config.ariaLabel}
+      camera={config.camera}
+      readout={<><span className={`jet-surface-readout jet-surface-readout--${study}`}>{config.label}</span><output>{config.value >= 0 ? '+' : ''}{config.value.toFixed(1)}°</output></>}
     >
-      <TailControlStudyModel elevator={elevator} rudder={rudder} />
+      {config.model}
     </JetSystemStudy>
   )
 }
@@ -206,8 +247,16 @@ export function JetLab() {
   const [bank, setBank] = useState(0)
   const [elevator, setElevator] = useState(0)
   const [rudder, setRudder] = useState(0)
+  const [surfaceStudy, setSurfaceStudy] = useState('flaps')
   const [mode, setMode] = useState('flight')
   const [resetSignal, setResetSignal] = useState(0)
+  const {
+    rootRef: cameraRootRef,
+    keysRef: cameraKeysRef,
+    onKeyDown: handleCameraKeyDown,
+    onBlur: handleCameraBlur,
+    onPointerDown: handleCameraPointerDown,
+  } = useArrowOrbit({ autoFocus: true })
   const fuelSection = useRef()
   const tailSection = useRef()
   const lastAutoMode = useRef(null)
@@ -254,6 +303,29 @@ export function JetLab() {
     return () => observer.disconnect()
   }, [])
 
+  const focusCamera = () => requestAnimationFrame(() => cameraRootRef.current?.focus({ preventScroll: true }))
+
+  const chooseMode = (nextMode) => {
+    setMode(nextMode)
+    focusCamera()
+  }
+
+  const chooseSurfaceStudy = (nextStudy, moveFocus = false) => {
+    setSurfaceStudy(nextStudy)
+    setMode('surfaces')
+    if (moveFocus) requestAnimationFrame(() => document.getElementById(`surface-study-tab-${nextStudy}`)?.focus())
+  }
+
+  const handleSurfaceTabKeyDown = (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const currentIndex = JET_SURFACE_STUDIES.findIndex(({ id }) => id === event.currentTarget.dataset.study)
+    const nextIndex = event.key === 'Home' ? 0
+      : event.key === 'End' ? JET_SURFACE_STUDIES.length - 1
+        : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + JET_SURFACE_STUDIES.length) % JET_SURFACE_STUDIES.length
+    chooseSurfaceStudy(JET_SURFACE_STUDIES[nextIndex].id, true)
+  }
+
   const reset = () => {
     setThrust(72)
     setPitch(2.5)
@@ -261,21 +333,36 @@ export function JetLab() {
     setBank(0)
     setElevator(0)
     setRudder(0)
+    setSurfaceStudy('flaps')
     setResetSignal((signal) => signal + 1)
+    focusCamera()
   }
 
   return (
     <div className={`lab-layout lab-layout--cake-box lab-layout--time-${time}`}>
-      <section className="demo-pane demo-pane--jet" aria-label="Interactive Boeing 747 model" data-scene-mode={mode} data-testid="jet-simulator">
+      <section
+        ref={cameraRootRef}
+        className="demo-pane demo-pane--jet interactive-scene"
+        aria-label="Interactive Boeing 747 model"
+        aria-describedby="jet-camera-instructions"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
+        data-scene-mode={mode}
+        data-testid="jet-simulator"
+        tabIndex={0}
+        onKeyDown={handleCameraKeyDown}
+        onBlur={handleCameraBlur}
+        onPointerDown={handleCameraPointerDown}
+      >
+        <span id="jet-camera-instructions" className="sr-only">Use Left and Right Arrow to orbit around the 747. Use Up and Down Arrow to raise or lower the viewpoint. Drag to orbit and pinch or scroll to zoom.</span>
         <div className="scene-toolbar"><SceneBadge>FL{flightLevel} · {JET_MODE_SHORT[mode]}</SceneBadge><ResetButton onClick={reset} /></div>
         <div className="scene-mode jet-scene-mode" aria-label="Boeing 747 visualization mode">
-          <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => setMode('flight')}>Four forces</button>
-          <button type="button" aria-pressed={mode === 'fuel'} className={mode === 'fuel' ? 'is-active' : ''} onClick={() => setMode('fuel')}>Fuel + thrust</button>
-          <button type="button" aria-pressed={mode === 'surfaces'} className={mode === 'surfaces' ? 'is-active' : ''} onClick={() => setMode('surfaces')}>Control surfaces</button>
+          <button type="button" aria-pressed={mode === 'flight'} className={mode === 'flight' ? 'is-active' : ''} onClick={() => chooseMode('flight')}>Four forces</button>
+          <button type="button" aria-pressed={mode === 'fuel'} className={mode === 'fuel' ? 'is-active' : ''} onClick={() => chooseMode('fuel')}>Fuel + thrust</button>
+          <button type="button" aria-pressed={mode === 'surfaces'} className={mode === 'surfaces' ? 'is-active' : ''} onClick={() => chooseMode('surfaces')}>Control surfaces</button>
         </div>
         <Canvas key={mode} camera={JET_CAMERAS[mode]} shadows dpr={[1, 1.75]} gl={{ preserveDrawingBuffer: true }}>
           <JetScene pitch={pitch} bank={bank} flaps={flaps} elevator={elevator} rudder={rudder} thrust={thrust} liftRatio={liftRatio} time={time}
-            altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} mode={mode} />
+            altitude={telemetry.altitude} verticalSpeed={telemetry.verticalSpeed} engineThrust={engineThrust} drag={forces.drag} mode={mode} cameraInputRef={cameraKeysRef} />
         </Canvas>
         <div className="instrument-cluster">
           <div className="dial" style={{ '--needle': `${-110 + (speed / 300) * 220}deg` }}><i /><span>{Math.round(speed * 1.944)}</span><small>KNOTS</small></div>
@@ -337,19 +424,45 @@ export function JetLab() {
         </section>
 
         <section ref={tailSection} data-scene-mode="surfaces" className="lesson-section jet-system-section">
-          <h2>See every control surface separately</h2>
-          <p className="body-copy">Gold triple-slotted flaps and teal ailerons share each wing's trailing edge. At the tail, four purple elevator panels create pitch while separate upper and lower coral rudders create yaw.</p>
-          <div className="control-group jet-tail-controls">
-            <div className="group-title"><span>Isolated tail study</span><small>Surface motion enlarged</small></div>
-            <Slider label="Elevator deflection" value={elevator} min={-18} max={18} step={1} unit="°" onChange={setElevator} accent="#76569b" />
-            <Slider label="Rudder deflection" value={rudder} min={-22} max={22} step={1} unit="°" onChange={setRudder} accent="#e45845" />
+          <h2>Compare one surface at a time</h2>
+          <p className="body-copy">Choose a surface, move only its control, and watch one mechanism. The full aircraft above keeps the same colors so you can place each isolated part back on the 747.</p>
+          <div className="surface-study-tabs" role="tablist" aria-label="Isolated 747 control-surface study">
+            {JET_SURFACE_STUDIES.map(({ id: study, label, accent }) => (
+              <button
+                key={study}
+                id={`surface-study-tab-${study}`}
+                type="button"
+                role="tab"
+                data-study={study}
+                aria-selected={surfaceStudy === study}
+                aria-controls="surface-study-panel"
+                className={surfaceStudy === study ? 'is-active' : ''}
+                tabIndex={surfaceStudy === study ? 0 : -1}
+                style={{ '--surface-tab-accent': accent }}
+                onClick={() => chooseSurfaceStudy(study)}
+                onKeyDown={handleSurfaceTabKeyDown}
+              >{label}</button>
+            ))}
           </div>
-          <TailControlStudy elevator={elevator} rudder={rudder} />
-          <div className="system-list jet-tail-functions">
-            <div><i className="system-icon system-icon--elevator" /><p><strong>Elevators make a pitching moment.</strong><span>The four panels move together. Their tail force rotates the nose up or down around the wing-to-wing axis.</span></p></div>
-            <div><i className="system-icon system-icon--rudder" /><p><strong>Rudders make a yawing moment.</strong><span>The upper and lower sections move on the fin, creating a sideways tail force that aligns the nose.</span></p></div>
+          <div id="surface-study-panel" role="tabpanel" aria-labelledby={`surface-study-tab-${surfaceStudy}`} className="surface-study-panel">
+            <div className="control-group surface-study-control">
+              <div className="group-title"><span>{surfaceStudy === 'flaps' ? 'Wing flap control' : surfaceStudy === 'elevators' ? 'Tail pitch control' : 'Tail yaw control'}</span><small>Only this surface moves</small></div>
+              {surfaceStudy === 'flaps' && <Slider label="Flap deflection" value={flaps} min={0} max={30} step={1} unit="°" onChange={(value) => { setFlaps(value); setMode('surfaces') }} accent="#d49a27" />}
+              {surfaceStudy === 'elevators' && <Slider label="Elevator deflection" value={elevator} min={-18} max={18} step={1} unit="°" onChange={(value) => { setElevator(value); setMode('surfaces') }} accent="#76569b" />}
+              {surfaceStudy === 'rudders' && <Slider label="Rudder deflection" value={rudder} min={-22} max={22} step={1} unit="°" onChange={(value) => { setRudder(value); setMode('surfaces') }} accent="#e45845" />}
+            </div>
+            <SurfaceControlStudy study={surfaceStudy} flaps={flaps} elevator={elevator} rudder={rudder} />
+            <p className="surface-study-explanation">
+              {surfaceStudy === 'flaps' && <><strong>Flaps reshape the main wing.</strong> They slide aft and down together, increasing camber and area so the wing makes more lift at low speed, with a large drag penalty.</>}
+              {surfaceStudy === 'elevators' && <><strong>Elevators rotate the airplane.</strong> Their tail force creates a pitching moment, moving the nose and changing the main wing's angle of attack.</>}
+              {surfaceStudy === 'rudders' && <><strong>Rudders turn the nose sideways.</strong> The upper and lower panels create a sideways tail force for yaw and turn coordination.</>}
+            </p>
           </div>
-          <Note>These sliders isolate the hydraulic control surfaces so their movement is easy to inspect; they do not replace the simplified angle-of-attack and bank model above. The movable horizontal stabilizer handles slower pitch trim.</Note>
+          <div className="surface-role-comparison" aria-label="Difference between flaps and elevators">
+            <div><i className="surface-role-swatch surface-role-swatch--flaps" /><p><strong>Flaps = more wing lift and drag</strong><span>They live on the main wings and normally move symmetrically for takeoff and landing.</span></p></div>
+            <div><i className="surface-role-swatch surface-role-swatch--elevators" /><p><strong>Elevators = nose up or down</strong><span>They live on the horizontal tail and create the pitching moment that controls attitude.</span></p></div>
+          </div>
+          <Note>Flap deployment can create a secondary pitching tendency that pilots trim out, but that is not the flap's primary job. The elevator is the direct pitch-control surface.</Note>
         </section>
 
         <section className="lesson-section system-list">

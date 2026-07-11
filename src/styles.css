@@ -183,6 +183,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 .demo-pane canvas { display: block; cursor: grab; }
 .demo-pane canvas:active { cursor: grabbing; }
+.interactive-scene:focus { outline: none; }
+.interactive-scene:focus-visible { box-shadow: inset 0 0 0 3px rgba(44, 139, 151, .72); }
 .demo-pane--wright canvas,
 .demo-pane--wright canvas:active { cursor: default; }
 .demo-pane--wing { background: #f3e8d8; }
@@ -1150,6 +1152,9 @@ input[type='range']::-moz-range-thumb {
 
 .jet-system-study--fuel { --jet-study-accent: #d49a27; height: 292px; }
 .jet-system-study--tail { --jet-study-accent: #76569b; }
+.jet-system-study--surface-flaps { --jet-study-accent: #d49a27; height: 292px; }
+.jet-system-study--surface-elevators { --jet-study-accent: #76569b; height: 292px; }
+.jet-system-study--surface-rudders { --jet-study-accent: #e45845; height: 292px; }
 .jet-system-study canvas { display: block; }
 
 .jet-system-study__orientation,
@@ -1237,6 +1242,99 @@ input[type='range']::-moz-range-thumb {
 .jet-tail-readout { font-weight: 600; }
 .jet-tail-readout--elevator { color: #76569b; }
 .jet-tail-readout--rudder { color: #b44739; }
+.jet-surface-readout { font-weight: 700; }
+.jet-surface-readout--flaps { color: #a66d0c; }
+.jet-surface-readout--elevators { color: #76569b; }
+.jet-surface-readout--rudders { color: #b44739; }
+
+.surface-study-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 16px 0 0;
+  padding: 3px;
+  border: 1px solid #c7b8a9;
+  border-radius: 6px;
+  background: #ede5da;
+}
+
+.surface-study-tabs button {
+  position: relative;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 8px 9px;
+  border: 0;
+  border-right: 1px solid #d0c3b5;
+  background: transparent;
+  color: #647477;
+  cursor: pointer;
+  font: 700 .61rem 'DM Mono', monospace;
+  text-transform: uppercase;
+}
+
+.surface-study-tabs button:last-child { border-right: 0; }
+.surface-study-tabs button::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  left: 8px;
+  height: 4px;
+  background: var(--surface-tab-accent);
+  opacity: 0;
+}
+.surface-study-tabs button:hover { color: #354e53; }
+.surface-study-tabs button.is-active { background: #fffaf0; color: #354e53; }
+.surface-study-tabs button.is-active::after { opacity: 1; }
+
+.surface-study-panel { margin-top: 12px; }
+.surface-study-control {
+  margin-bottom: 14px;
+  padding-top: 14px;
+  padding-bottom: 16px;
+  box-shadow: 4px 5px 0 rgba(118, 83, 68, .08);
+}
+
+.surface-study-explanation {
+  margin: -1px 0 19px;
+  color: #647174;
+  font-size: .76rem;
+  line-height: 1.58;
+}
+.surface-study-explanation strong { color: #38545b; }
+
+.surface-role-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 10px 0 17px;
+  border-top: 1px solid #cbbdaf;
+  border-bottom: 1px solid #cbbdaf;
+}
+
+.surface-role-comparison > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 17px 1fr;
+  gap: 9px;
+  align-items: start;
+  padding: 14px 12px 15px 0;
+}
+.surface-role-comparison > div + div {
+  padding-right: 0;
+  padding-left: 12px;
+  border-left: 1px solid #cbbdaf;
+}
+.surface-role-comparison p { display: grid; gap: 4px; margin: 0; }
+.surface-role-comparison strong { color: #38545b; font-size: .72rem; line-height: 1.35; }
+.surface-role-comparison span { color: #6c7777; font-size: .68rem; line-height: 1.5; }
+.surface-role-swatch {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1px solid rgba(49, 89, 100, .38);
+  background: var(--surface-role-color);
+}
+.surface-role-swatch--flaps { --surface-role-color: #d49a27; }
+.surface-role-swatch--elevators { --surface-role-color: #76569b; transform: rotate(45deg) scale(.78); }
 
 .jet-system-principle {
   margin: 0 0 16px;
@@ -1270,6 +1368,17 @@ input[type='range']::-moz-range-thumb {
 .lab-layout--time-night .jet-system-study__readout output { background: #233653; }
 .lab-layout--time-night .jet-system-principle { color: #d9d4c3; background: #35435b; }
 .lab-layout--time-night .jet-system-principle strong { color: #eef4fb; }
+.lab-layout--time-night .surface-study-tabs { border-color: #526989; background: #1b2d48; }
+.lab-layout--time-night .surface-study-tabs button { color: #afc0d3; border-right-color: #40536f; }
+.lab-layout--time-night .surface-study-tabs button:hover,
+.lab-layout--time-night .surface-study-tabs button.is-active { color: #eef4fb; }
+.lab-layout--time-night .surface-study-tabs button.is-active { background: #233653; }
+.lab-layout--time-night .surface-study-explanation,
+.lab-layout--time-night .surface-role-comparison span { color: #afc0d3; }
+.lab-layout--time-night .surface-study-explanation strong,
+.lab-layout--time-night .surface-role-comparison strong { color: #eef4fb; }
+.lab-layout--time-night .surface-role-comparison { border-color: #40536f; }
+.lab-layout--time-night .surface-role-comparison > div + div { border-left-color: #40536f; }
 
 .instrument-cluster {
   position: absolute;
@@ -1413,11 +1522,22 @@ input[type='range']::-moz-range-thumb {
   .control-exploded__readout { gap: 5px; font-size: .45rem; }
   .jet-system-study--fuel { height: 340px; }
   .jet-system-study--tail { height: 258px; }
+  .jet-system-study--surface-flaps,
+  .jet-system-study--surface-elevators,
+  .jet-system-study--surface-rudders { height: 310px; }
   .jet-system-study__orientation { font-size: .45rem; }
   .jet-system-study__stages { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .jet-system-study__stages span { min-height: 34px; font-size: .5rem; }
   .jet-system-study__readout { flex-wrap: wrap; gap: 5px 9px; font-size: .48rem; }
   .jet-system-study__readout output { margin-left: 0; }
+  .jet-system-study--surface-flaps .jet-system-study__stages,
+  .jet-system-study--surface-elevators .jet-system-study__stages,
+  .jet-system-study--surface-rudders .jet-system-study__stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .surface-study-tabs button { min-height: 42px; padding-right: 4px; padding-left: 4px; font-size: .52rem; }
+  .surface-role-comparison { grid-template-columns: 1fr; }
+  .surface-role-comparison > div { padding-right: 0; }
+  .surface-role-comparison > div + div { padding-left: 0; border-top: 1px solid #cbbdaf; border-left: 0; }
+  .lab-layout--time-night .surface-role-comparison > div + div { border-top-color: #40536f; }
   .jet-tail-controls { grid-template-columns: 1fr; }
   .jet-tail-controls .group-title { grid-column: auto; }
 }
