@@ -50,6 +50,10 @@ export default function App() {
       <div className="lab-stage" key={labs[activeIndex].id}>
         <ActiveLab />
       </div>
+
+      <footer className="site-footer">
+        <a href="https://www.nbaronia.com" target="_blank" rel="noreferrer">Made by nbaronia</a>
+      </footer>
     </main>
   )
 }

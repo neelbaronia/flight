@@ -48,7 +48,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: 72px 66px minmax(0, 1fr);
+  grid-template-rows: 72px 66px minmax(0, 1fr) auto;
   background:
     linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px),
@@ -171,6 +171,23 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 .lab-stage { min-height: 0; animation: lab-in .45s ease both; }
 @keyframes lab-in { from { opacity: 0; transform: translateY(6px); } }
+
+.site-footer {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  padding: 20px 24px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 250, 241, .96);
+}
+
+.site-footer a {
+  color: var(--ink);
+  font: 600 .78rem 'DM Mono', monospace;
+  text-decoration: none;
+}
+
+.site-footer a:hover { color: var(--coral); }
 
 .lab-layout {
   min-height: calc(100vh - 138px);
@@ -460,13 +477,17 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 body[data-flight-time='evening'] .app-shell--cake-box { background-color: #e8dfea; }
 body[data-flight-time='evening'] .site-header,
-body[data-flight-time='evening'] .lab-tabs { background: #f0e9f0; border-color: #cfbccd; }
+body[data-flight-time='evening'] .lab-tabs,
+body[data-flight-time='evening'] .site-footer { background: #f0e9f0; border-color: #cfbccd; }
 body[data-flight-time='night'] .app-shell--cake-box { background-color: #122139; }
 body[data-flight-time='night'] .site-header,
-body[data-flight-time='night'] .lab-tabs { color: #dce7f3; background: #14243a; border-color: #344864; }
+body[data-flight-time='night'] .lab-tabs,
+body[data-flight-time='night'] .site-footer { color: #dce7f3; background: #14243a; border-color: #344864; }
 body[data-flight-time='night'] .brand,
 body[data-flight-time='night'] .lab-tabs button { color: #b9c8d8; }
 body[data-flight-time='night'] .site-title { color: #eef4fb; }
+body[data-flight-time='night'] .site-footer a { color: #dce7f3; }
+body[data-flight-time='night'] .site-footer a:hover { color: #ff9187; }
 body[data-flight-time='night'] .brand small { color: #8fa4b9; }
 body[data-flight-time='night'] .header-note { color: #d6a9c6; }
 body[data-flight-time='night'] .lab-tabs button.is-active { color: #ff9187; }
