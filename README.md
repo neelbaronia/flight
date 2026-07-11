@@ -17,9 +17,17 @@ npm run dev
 
 Open the URL printed by Vite. The standalone art-direction study is available at `/style-directions.html`.
 
+## Source
+
+The source is available at [github.com/neelbaronia/flight](https://github.com/neelbaronia/flight).
+
 ## Checks
 
 ```bash
 npm run lint
 npm run build
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Github } from 'lucide-react'
 import { WingLab } from './labs/WingLab.jsx'
 import { WrightLab } from './labs/WrightLab.jsx'
 import { JetLab } from './labs/JetLab.jsx'
@@ -52,7 +53,10 @@ export default function App() {
       </div>
 
       <footer className="site-footer">
-        <a href="https://www.nbaronia.com" target="_blank" rel="noreferrer">Made by nbaronia</a>
+        <div className="site-footer__links">
+          <a href="https://www.nbaronia.com" target="_blank" rel="noreferrer">Made by nbaronia</a>
+          <a href="https://github.com/neelbaronia/flight" target="_blank" rel="noreferrer"><Github size={15} aria-hidden="true" />View source on GitHub</a>
+        </div>
       </footer>
     </main>
   )

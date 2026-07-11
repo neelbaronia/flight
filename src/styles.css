@@ -181,7 +181,18 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: rgba(255, 250, 241, .96);
 }
 
+.site-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 22px;
+}
+
 .site-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--ink);
   font: 600 .78rem 'DM Mono', monospace;
   text-decoration: none;
