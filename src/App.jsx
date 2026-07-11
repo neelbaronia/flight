@@ -29,7 +29,11 @@ export default function App() {
   return (
     <main className={`app-shell app-shell--${labs[activeIndex].id === 'wing' ? 'painted-notes' : 'cake-box'}`}>
       <header className="site-header">
-        <a className="site-title" href="#wing" onClick={() => chooseLab('wing')}>HOW FLIGHT WORKS</a>
+        <a className="site-title" href="#wing" onClick={() => chooseLab('wing')} aria-label="How Flight Works">
+          <span>HOW</span>
+          <span>FLIGHT</span>
+          <span>WORKS</span>
+        </a>
       </header>
 
       <nav className="lab-tabs" aria-label="Flight experiments">

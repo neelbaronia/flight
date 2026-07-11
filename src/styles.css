@@ -79,6 +79,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .app-shell--cake-box .brand-mark { box-shadow: 3px 3px 0 #eda8ba, 6px 6px 0 rgba(118, 86, 152, .14); }
 
 .site-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,10 +88,39 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: rgba(255, 250, 241, .94);
 }
 
+.site-header::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #e6543f 0 33.333%, #f2c94d 33.333% 66.666%, #2f94a3 66.666% 100%);
+}
+
 .site-title {
-  color: var(--ink);
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  gap: .28em;
   font: 700 1.65rem 'Fraunces', serif;
   text-decoration: none;
+}
+
+.site-title span:nth-child(1) {
+  color: var(--coral);
+  text-shadow: 2px 2px 0 rgba(242, 201, 77, .58);
+}
+
+.site-title span:nth-child(2) {
+  color: var(--ink);
+  text-shadow: 2px 2px 0 rgba(239, 167, 187, .55);
+}
+
+.site-title span:nth-child(3) {
+  color: var(--blue-deep);
+  text-shadow: 2px 2px 0 rgba(119, 189, 210, .45);
 }
 
 .brand {
@@ -496,7 +526,9 @@ body[data-flight-time='night'] .lab-tabs,
 body[data-flight-time='night'] .site-footer { color: #dce7f3; background: #14243a; border-color: #344864; }
 body[data-flight-time='night'] .brand,
 body[data-flight-time='night'] .lab-tabs button { color: #b9c8d8; }
-body[data-flight-time='night'] .site-title { color: #eef4fb; }
+body[data-flight-time='night'] .site-title span:nth-child(1) { color: #ff9187; text-shadow-color: rgba(242, 201, 77, .42); }
+body[data-flight-time='night'] .site-title span:nth-child(2) { color: #eef4fb; text-shadow-color: rgba(214, 169, 198, .42); }
+body[data-flight-time='night'] .site-title span:nth-child(3) { color: #82d3dc; text-shadow-color: rgba(118, 86, 155, .62); }
 body[data-flight-time='night'] .site-footer a { color: #dce7f3; }
 body[data-flight-time='night'] .site-footer a:hover { color: #ff9187; }
 body[data-flight-time='night'] .brand small { color: #8fa4b9; }
