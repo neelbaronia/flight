@@ -420,7 +420,7 @@ export function JumboModel({ pitch, bank, flaps, elevator, rudder, thrust, time,
   )
 }
 
-function StudyFan({ thrust }) {
+function StudyFan({ thrust, position = [-1.88, -1.15, 0.2] }) {
   const fan = useRef()
   const reducedMotion = useRef(prefersReducedMotion())
   useFrame((_, delta) => {
@@ -428,7 +428,7 @@ function StudyFan({ thrust }) {
     fan.current.rotation.z -= delta * thrust * 0.13
   })
   return (
-    <group ref={fan} position={[-1.88, -1.15, 0.2]}>
+    <group ref={fan} position={position}>
       {Array.from({ length: 10 }, (_, index) => (
         <mesh key={index} rotation={[0, 0, (index / 10) * Math.PI]} position={[0, 0.18, 0]}>
           <boxGeometry args={[0.035, 0.34, 0.03]} />
@@ -440,18 +440,35 @@ function StudyFan({ thrust }) {
   )
 }
 
-function StudyFlow({ thrust }) {
+function EngineFuelFlow({ thrust }) {
   const fuel = useRef()
-  const bypass = useRef()
-  const exhaust = useRef()
   const reducedMotion = useRef(prefersReducedMotion())
   useFrame((state) => {
     const speed = thrust / 100
     fuel.current?.children.forEach((particle, index) => {
       const progress = reducedMotion.current ? index / 8 : (state.clock.elapsedTime * (0.2 + speed * 1.3) + index / 8) % 1
-      particle.position.y = 0.42 - progress * 1.15
+      particle.position.y = 0.92 - progress * 0.82
       particle.visible = thrust > 0
     })
+  })
+  return (
+    <group ref={fuel}>
+      {Array.from({ length: 8 }, (_, index) => (
+        <mesh key={index} position={[0.05, 0.92 - index * 0.1, 0.26]}>
+          <sphereGeometry args={[0.045, 9, 7]} />
+          <meshBasicMaterial color="#e4ac32" />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function EngineAirflow({ thrust }) {
+  const bypass = useRef()
+  const exhaust = useRef()
+  const reducedMotion = useRef(prefersReducedMotion())
+  useFrame((state) => {
+    const speed = thrust / 100
     bypass.current?.children.forEach((particle, index) => {
       const progress = reducedMotion.current ? (index % 10) / 10 : (state.clock.elapsedTime * (0.2 + speed * 1.45) + (index % 10) / 10) % 1
       particle.position.x = -2.5 + progress * (4.75 + speed * 0.7)
@@ -466,17 +483,9 @@ function StudyFlow({ thrust }) {
   })
   return (
     <>
-      <group ref={fuel}>
-        {Array.from({ length: 8 }, (_, index) => (
-          <mesh key={index} position={[0, 0.42 - index * 0.12, 0.26]}>
-            <sphereGeometry args={[0.045, 9, 7]} />
-            <meshBasicMaterial color="#e4ac32" />
-          </mesh>
-        ))}
-      </group>
       <group ref={bypass}>
         {Array.from({ length: 20 }, (_, index) => (
-          <mesh key={index} position={[-2.5 + (index % 10) * 0.45, index < 10 ? -0.86 : -1.44, 0.14]}>
+          <mesh key={index} position={[-2.5 + (index % 10) * 0.45, index < 10 ? 0.29 : -0.29, 0.14]}>
             <boxGeometry args={[0.16, 0.035, 0.025]} />
             <meshBasicMaterial color="#62b9c7" transparent opacity={0.78} />
           </mesh>
@@ -484,7 +493,7 @@ function StudyFlow({ thrust }) {
       </group>
       <group ref={exhaust}>
         {Array.from({ length: 12 }, (_, index) => (
-          <mesh key={index} position={[1.18 + index * 0.08, -1.15 + ((index % 3) - 1) * 0.08, 0.15]}>
+          <mesh key={index} position={[1.18 + index * 0.08, ((index % 3) - 1) * 0.08, 0.15]}>
             <boxGeometry args={[0.13, 0.025, 0.025]} />
             <meshBasicMaterial color={index % 2 ? '#f4c247' : '#f08b59'} transparent opacity={0.78} />
           </mesh>
@@ -494,7 +503,11 @@ function StudyFlow({ thrust }) {
   )
 }
 
-function StudyPlanform() {
+function StudyFlow({ thrust }) {
+  return <group position={[0, -1.15, 0]}><EngineFuelFlow thrust={thrust} /><EngineAirflow thrust={thrust} /></group>
+}
+
+function StudyPlanform({ position = [0, 1.2, 0] }) {
   const shape = useMemo(() => {
     const wing = new THREE.Shape()
     wing.moveTo(-2.95, 0.2)
@@ -507,7 +520,7 @@ function StudyPlanform() {
     return wing
   }, [])
   return (
-    <mesh position={[0, 1.2, 0]}>
+    <mesh position={position}>
       <shapeGeometry args={[shape]} />
       <meshStandardMaterial color="#efb1c2" transparent opacity={0.34} side={THREE.DoubleSide} depthWrite={false} />
     </mesh>
@@ -559,6 +572,69 @@ export function FuelSystemStudyModel({ thrust }) {
         <meshStandardMaterial color="#9e6b55" side={THREE.DoubleSide} transparent opacity={0.66} />
       </mesh>
       <StudyFlow thrust={thrust} />
+    </group>
+  )
+}
+
+export function FuelDistributionStudyModel() {
+  return (
+    <group position={[0, -0.08, 0]}>
+      <StudyPlanform position={[0, 0.55, 0]} />
+      <mesh position={[0, 0.78, 0.04]}><boxGeometry args={[0.42, 1.72, 0.08]} /><meshStandardMaterial color="#fff8e9" transparent opacity={0.58} depthWrite={false} /></mesh>
+      <FuelTank position={[0, 0.52, 0.1]} size={[0.72, 0.45, 0.09]} color="#e4ac32" />
+      {[-1, 1].flatMap((side) => [
+        <FuelTank key={`distribution-main-${side}`} position={[side * 1.12, 0.58, 0.1]} size={[1.3, 0.38, 0.09]} color="#2b9db0" />,
+        <FuelTank key={`distribution-out-${side}`} position={[side * 2.18, 0.72, 0.1]} size={[0.68, 0.27, 0.09]} color="#55b9c2" />,
+      ])}
+
+      <Line points={[[-2.5, -0.02, 0.16], [2.5, -0.02, 0.16]]} color="#e4ac32" lineWidth={3.2} />
+      {[-2.2, -0.95, 0.95, 2.2].map((x) => (
+        <group key={x}>
+          <Line points={[[x, 0.5, 0.14], [x, -0.27, 0.14]]} color={x === 0.95 ? '#f2c54a' : '#cba744'} lineWidth={x === 0.95 ? 3 : 1.8} />
+          <mesh position={[x, -0.3, 0.15]}><circleGeometry args={[0.09, 14]} /><meshStandardMaterial color="#e45845" /></mesh>
+        </group>
+      ))}
+      <Line points={[[0.95, -0.3, 0.17], [2.35, -0.82, 0.17]]} color="#f2c54a" lineWidth={3.2} />
+      <mesh position={[2.38, -0.83, 0.17]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.11, 0.28, 14]} />
+        <meshStandardMaterial color="#f2c54a" />
+      </mesh>
+
+    </group>
+  )
+}
+
+export function TurbofanCutawayStudyModel({ thrust }) {
+  const flow = thrust / 100
+  return (
+    <group>
+      <Line points={[[0.05, 1.03, 0.18], [0.05, 0.18, 0.18]]} color="#e4ac32" lineWidth={3.2} />
+      <mesh position={[0.05, 0.73, 0.2]}><torusGeometry args={[0.1, 0.035, 8, 16]} /><meshStandardMaterial color="#e45845" metalness={0.25} /></mesh>
+      <mesh position={[0.05, 0.38, 0.2]}><boxGeometry args={[0.2, 0.13, 0.08]} /><meshStandardMaterial color="#76569b" /></mesh>
+      <mesh>
+        <boxGeometry args={[4.8, 0.82, 0.14]} />
+        <meshStandardMaterial color="#dfe9e7" transparent opacity={0.24} depthWrite={false} />
+      </mesh>
+      <Line points={[[-2.55, 0.29, 0.1], [2.35, 0.29, 0.1]]} color="#7bc7d0" lineWidth={3.4} />
+      <Line points={[[-2.55, -0.29, 0.1], [2.35, -0.29, 0.1]]} color="#7bc7d0" lineWidth={3.4} />
+      <Line points={[[-1.55, 0, 0.16], [1.55, 0, 0.16]]} color="#ef8d55" lineWidth={4} />
+      <StudyFan thrust={thrust} position={[-1.88, 0, 0.2]} />
+      {[-1.35, -1.1, -0.85].map((x) => (
+        <mesh key={x} position={[x, 0, 0.2]}><torusGeometry args={[0.2, 0.035, 8, 18]} /><meshStandardMaterial color="#57737a" metalness={0.32} /></mesh>
+      ))}
+      <mesh position={[0.05, 0, 0.2]}>
+        <sphereGeometry args={[0.28, 16, 12]} />
+        <meshStandardMaterial color="#f2a23b" emissive="#f0783d" emissiveIntensity={flow > 0 ? 0.2 + flow * 1.4 : 0} />
+      </mesh>
+      {[0.58, 0.82, 1.04].map((x) => (
+        <mesh key={x} position={[x, 0, 0.2]}><torusGeometry args={[0.2, 0.035, 8, 18]} /><meshStandardMaterial color="#8c5d58" metalness={0.3} /></mesh>
+      ))}
+      <mesh position={[1.52, 0, 0.08]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.34, 0.8, 20, 1, true]} />
+        <meshStandardMaterial color="#9e6b55" side={THREE.DoubleSide} transparent opacity={0.66} />
+      </mesh>
+      <EngineFuelFlow thrust={thrust} />
+      <EngineAirflow thrust={thrust} />
     </group>
   )
 }

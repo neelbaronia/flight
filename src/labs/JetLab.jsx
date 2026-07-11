@@ -7,7 +7,7 @@ import { useArrowOrbit } from '../hooks/useArrowOrbit.js'
 import { useTimeOfDay } from '../hooks/useTimeOfDay.js'
 import { clamp, flightForces, formatForce, GRAVITY, liftCoefficient } from '../physics.js'
 import { ElevatorStudyModel, FlapStudyModel, RudderStudyModel } from './JetControlStudies.jsx'
-import { FuelSystemStudyModel, JumboModel } from './JetModels.jsx'
+import { FuelDistributionStudyModel, JumboModel, TurbofanCutawayStudyModel } from './JetModels.jsx'
 
 const JET_MASS = 285_000
 const JET_AREA = 511
@@ -175,19 +175,93 @@ function JetSystemStudy({ type, stages, orientation, ariaLabel, camera, animate 
   )
 }
 
-function FuelSystemStudy({ thrust }) {
+function FuelStudyCanvas({ ariaLabel, camera, animate = false, children }) {
   return (
-    <JetSystemStudy
-      type="fuel"
-      stages={['WING + CENTER TANKS', 'BOOST PUMPS + CROSSFEED', 'ENGINE PUMPS + FUEL CONTROL', 'NOZZLES + COMBUSTOR', 'FAN + CORE AIR BACK']}
-      orientation="747-400 FUEL MAP → ONE ENGINE CUTAWAY"
-      ariaLabel={`Simplified 747-400 fuel system at ${thrust} percent thrust: wing and center tanks feed boost pumps and a crossfeed manifold, engine pumps and fuel control meter it to the combustor, and the fan and core accelerate air backward`}
-      camera={{ position: [0, 0.25, 8], zoom: 58 }}
-      animate
-      readout={<><span><i className="jet-swatch jet-swatch--main" />WING TANKS</span><span><i className="jet-swatch jet-swatch--fuel" />CENTER TANK</span><span><i className="jet-swatch jet-swatch--air" />BYPASS AIR</span><span><i className="jet-swatch jet-swatch--hot" />HOT CORE</span><output>{thrust}% THRUST</output></>}
-    >
-      <FuelSystemStudyModel thrust={thrust} />
-    </JetSystemStudy>
+    <div className="fuel-study-canvas" role="img" aria-label={ariaLabel}>
+      <Canvas orthographic camera={camera} frameloop={animate ? 'always' : 'demand'} dpr={[1, 1.5]} gl={{ preserveDrawingBuffer: true }}>
+        <ambientLight intensity={1.9} />
+        <directionalLight position={[4, 6, 6]} intensity={2.2} color="#fff6e4" />
+        <directionalLight position={[-4, 1, -3]} intensity={0.7} color="#9fd3dc" />
+        {children}
+      </Canvas>
+    </div>
+  )
+}
+
+function FuelStudyPlate({ number, title, subtitle, type, steps, stepStart, ariaLabel, camera, animate, control, orientation, componentKey, legend, children }) {
+  return (
+    <article className={`fuel-study-plate fuel-study-plate--${type}`}>
+      <header className="fuel-study-plate__header">
+        <span>{number}</span>
+        <div><h3>{title}</h3><p>{subtitle}</p></div>
+      </header>
+      {control}
+      <div className="fuel-study-orientation">{orientation}</div>
+      <FuelStudyCanvas ariaLabel={ariaLabel} camera={camera} animate={animate}>{children}</FuelStudyCanvas>
+      {componentKey}
+      <div className="fuel-study-legend">{legend}</div>
+      <div className="fuel-study-steps" role="list" aria-label={`${title} sequence`}>
+        {steps.map((step, index) => <span key={step} role="listitem"><i>{stepStart + index}</i><b>{step}</b></span>)}
+      </div>
+    </article>
+  )
+}
+
+function FuelSystemStudy({ thrust, onThrustChange }) {
+  const journey = useRef()
+  const [journeyVisible, setJourneyVisible] = useState(() => typeof IntersectionObserver === 'undefined')
+
+  useEffect(() => {
+    if (!journey.current || !('IntersectionObserver' in window)) return undefined
+    const observer = new IntersectionObserver(([entry]) => setJourneyVisible(entry.isIntersecting), { rootMargin: '200px 0px', threshold: 0.01 })
+    observer.observe(journey.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={journey} className="fuel-journey">
+      <FuelStudyPlate
+        number="01"
+        title="Fuel reaches one engine"
+        subtitle="Tanks are structural bays. Pumps and valves choose a pressurized route."
+        type="distribution"
+        steps={['Tanks store fuel', 'Boost pumps pressurize it', 'Crossfeed selects a route', 'Fuel reaches the pylon']}
+        stepStart={1}
+        ariaLabel="Top-down 747 fuel distribution map. Wing and center tanks feed boost pumps and a crossfeed manifold, with one highlighted route continuing toward an engine."
+        camera={{ position: [0, 0.08, 8], zoom: 58 }}
+        orientation={<><span>TOP VIEW</span><b>TANKS → MANIFOLD → ENGINE FEED</b></>}
+        legend={<><span><i className="jet-swatch jet-swatch--main" />WING TANKS</span><span><i className="jet-swatch jet-swatch--fuel" />CENTER TANK</span><span><i className="jet-swatch jet-swatch--pump" />BOOST PUMP</span></>}
+      >
+        <FuelDistributionStudyModel />
+      </FuelStudyPlate>
+
+      <div className="fuel-study-handoff"><span>Pressurized fuel reaches one engine</span><b>↓</b></div>
+
+      <FuelStudyPlate
+        number="02"
+        title="The engine accelerates air backward"
+        subtitle="Fuel releases energy in the core. The fan transfers that energy to a much larger mass of air."
+        type="engine"
+        steps={['Engine pump raises pressure', 'Fuel control meters + nozzles spray', 'Turbines drive fan + compressor', 'Fan and core push air back']}
+        stepStart={5}
+        ariaLabel={`Side cutaway of one 747 turbofan at ${thrust} percent power. Metered fuel enters the combustor while air enters the fan from the left; the bypass stream and hot core move rearward to the right.`}
+        camera={{ position: [0, 0.12, 8], zoom: 62 }}
+        animate={journeyVisible}
+        control={<div className="fuel-engine-power"><Slider label="Engine power" value={thrust} min={0} max={100} unit="%" onChange={onThrustChange} accent="#d49a27" /></div>}
+        orientation={<><span>FRONT / INLET</span><b>AIRFLOW →</b><span>REAR / EXHAUST</span></>}
+        componentKey={<div className="fuel-component-rail" role="list" aria-label="Engine components from front to rear">
+          {['Fan', 'Compressor', 'Combustor', 'Turbine', 'Nozzle'].map((component, index) => <span key={component} role="listitem"><i>{String.fromCharCode(65 + index)}</i><b>{component}</b></span>)}
+        </div>}
+        legend={<><span><i className="jet-swatch jet-swatch--fuel" />METERED FUEL</span><span><i className="jet-swatch jet-swatch--air" />BYPASS AIR</span><span><i className="jet-swatch jet-swatch--hot" />HOT CORE</span></>}
+      >
+        <TurbofanCutawayStudyModel thrust={thrust} />
+      </FuelStudyPlate>
+
+      <div className="fuel-action-pair" aria-label="Air and thrust move in opposite directions">
+        <span><b>AIR + EXHAUST</b> accelerated back →</span>
+        <span>← <b>THRUST</b> reaction forward</span>
+      </div>
+    </div>
   )
 }
 
@@ -414,7 +488,7 @@ export function JetLab() {
         <section ref={fuelSection} data-scene-mode="fuel" className="lesson-section jet-system-section">
           <h2>From sealed wing tanks to thrust</h2>
           <p className="body-copy">This simplified 747-400 map shows fuel inside structural bays in the wings and center wing box. Electric boost pumps pressurize it, and a crossfeed manifold can route fuel toward any of the four engines.</p>
-          <FuelSystemStudy thrust={thrust} />
+          <FuelSystemStudy thrust={thrust} onThrustChange={setThrust} />
           <p className="jet-system-principle"><strong>Fuel supplies energy. Air carries most of the momentum.</strong> At the pylon, an engine shutoff valve passes fuel to engine-driven pumps and a metering unit, then to spray nozzles in the combustor. The hot gas turns turbines connected to the compressor and fan; the fan accelerates a much larger bypass stream backward.</p>
           <Equation caption="The fan and hot core both add rearward momentum to the airflow. The equal reaction is forward thrust."
             values={`${thrust}% command = ${formatForce(engineThrust)} simulated cruise thrust`}>
