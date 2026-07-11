@@ -1,16 +1,54 @@
-import { Line, Text } from '@react-three/drei'
+import { Billboard, Line, OrbitControls, Text } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 
-export function StudioLights() {
+const LIGHTING = {
+  day: { ambient: 1.7, ambientColor: '#ffffff', key: 2.2, keyColor: '#ffffff', fill: 0.9, fillColor: '#f9cbd8' },
+  evening: { ambient: 1.15, ambientColor: '#d9d2ff', key: 1.8, keyColor: '#ffd09f', fill: 1.15, fillColor: '#d28dca' },
+  night: { ambient: 0.55, ambientColor: '#8ca8d8', key: 1.25, keyColor: '#b9d6ff', fill: 0.55, fillColor: '#e6a9c3' },
+}
+
+export function StudioLights({ time = 'day' }) {
+  const lighting = LIGHTING[time] || LIGHTING.day
   return (
     <>
-      <ambientLight intensity={1.7} />
-      <directionalLight position={[7, 10, 8]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[-8, 3, -5]} intensity={0.9} color="#f9cbd8" />
+      <ambientLight intensity={lighting.ambient} color={lighting.ambientColor} />
+      <directionalLight position={[7, 10, 8]} intensity={lighting.key} color={lighting.keyColor} castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[-8, 3, -5]} intensity={lighting.fill} color={lighting.fillColor} />
     </>
   )
+}
+
+export function KeyboardOrbitControls({
+  inputRef,
+  minPolarAngle = 0.4,
+  maxPolarAngle = Math.PI - 0.4,
+  orbitSpeed = 0.9,
+  elevationSpeed = 0.65,
+  ...props
+}) {
+  const controls = useRef()
+
+  useFrame((_, delta) => {
+    if (!controls.current || !inputRef?.current) return
+    const horizontal = (inputRef.current.right ? 1 : 0) - (inputRef.current.left ? 1 : 0)
+    const vertical = (inputRef.current.up ? 1 : 0) - (inputRef.current.down ? 1 : 0)
+    if (!horizontal && !vertical) return
+    const frameDelta = Math.min(delta, 0.1)
+    if (horizontal) {
+      controls.current.setAzimuthalAngle(
+        controls.current.getAzimuthalAngle() + horizontal * orbitSpeed * frameDelta,
+      )
+    }
+    if (vertical) {
+      const nextPolar = controls.current.getPolarAngle() - vertical * elevationSpeed * frameDelta
+      controls.current.setPolarAngle(Math.max(minPolarAngle, Math.min(maxPolarAngle, nextPolar)))
+    }
+    controls.current.update()
+  })
+
+  return <OrbitControls ref={controls} minPolarAngle={minPolarAngle} maxPolarAngle={maxPolarAngle} {...props} />
 }
 
 export function Ground({ color = '#f4d87a', size = 50, y = -2.5 }) {
@@ -41,9 +79,11 @@ export function ForceArrow({ from = [0, 0, 0], direction = [0, 1, 0], length = 2
         <meshBasicMaterial color={color} />
       </mesh>
       {label && (
-        <Text position={labelPosition} fontSize={0.24} color={color} anchorX="center" outlineWidth={0.018} outlineColor="#fff9ef">
-          {label}
-        </Text>
+        <Billboard position={labelPosition}>
+          <Text fontSize={0.24} color={color} anchorX="center" outlineWidth={0.018} outlineColor="#fff9ef">
+            {label}
+          </Text>
+        </Billboard>
       )}
     </group>
   )
@@ -78,13 +118,13 @@ export function Airflow({ speed = 20, y = 0, count = 26, length = 12, color = '#
   )
 }
 
-export function Cloud({ position, scale = 1 }) {
+export function Cloud({ position, scale = 1, color = '#fff9ed', opacity = 1 }) {
   return (
     <group position={position} scale={scale}>
       {[[0, 0, 0, 0.72], [0.65, 0.05, 0, 0.54], [-0.58, -0.03, 0, 0.48], [0.1, 0.34, 0, 0.5]].map(([x, y, z, radius], i) => (
         <mesh key={i} position={[x, y, z]}>
           <sphereGeometry args={[radius, 20, 14]} />
-          <meshStandardMaterial color="#fff9ed" roughness={1} />
+          <meshStandardMaterial color={color} roughness={1} transparent opacity={opacity} />
         </mesh>
       ))}
     </group>

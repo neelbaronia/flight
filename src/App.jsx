@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plane, Sparkles } from 'lucide-react'
+import { Github } from 'lucide-react'
 import { WingLab } from './labs/WingLab.jsx'
 import { WrightLab } from './labs/WrightLab.jsx'
 import { JetLab } from './labs/JetLab.jsx'
@@ -29,11 +29,7 @@ export default function App() {
   return (
     <main className={`app-shell app-shell--${labs[activeIndex].id === 'wing' ? 'painted-notes' : 'cake-box'}`}>
       <header className="site-header">
-        <a className="brand" href="#wing" onClick={() => chooseLab('wing')}>
-          <span className="brand-mark"><Plane size={22} /></span>
-          <span><strong>HOW FLIGHT WORKS</strong><small>A hands-on physics studio</small></span>
-        </a>
-        <div className="header-note"><Sparkles size={16} /> Three experiments · one sky</div>
+        <a className="site-title" href="#wing" onClick={() => chooseLab('wing')}>HOW FLIGHT WORKS</a>
       </header>
 
       <nav className="lab-tabs" aria-label="Flight experiments">
@@ -55,6 +51,13 @@ export default function App() {
       <div className="lab-stage" key={labs[activeIndex].id}>
         <ActiveLab />
       </div>
+
+      <footer className="site-footer">
+        <div className="site-footer__links">
+          <a href="https://www.nbaronia.com" target="_blank" rel="noreferrer">Made by nbaronia</a>
+          <a href="https://github.com/neelbaronia/flight" target="_blank" rel="noreferrer"><Github size={15} aria-hidden="true" />View source on GitHub</a>
+        </div>
+      </footer>
     </main>
   )
 }
