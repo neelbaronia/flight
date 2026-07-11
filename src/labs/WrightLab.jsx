@@ -608,9 +608,10 @@ const CONTROL_LINKAGE_META = {
   pitch: {
     input: 'LEFT-HAND LEVER',
     linkage: 'SHAFT + CHAIN/WIRE',
-    output: 'FRONT ELEVATOR',
-    orientation: 'SIDE CUTAWAY · NOSE / FRONT →',
-    camera: { position: [0, 0.45, 8], zoom: 50 },
+    output: 'BOTH FRONT ELEVATORS',
+    orientation: "OVER PILOT'S LEFT SHOULDER · NOSE / FRONT →",
+    stages: ['HAND MOVES LEVER', 'SHAFT + PULLEY', 'WIRES + FRONT CRANK', 'BOTH ELEVATORS'],
+    camera: { position: [-3.4, 3.05, 6.4], zoom: 53 },
   },
   roll: {
     input: 'HIP CRADLE',
@@ -660,6 +661,33 @@ function LinkagePilot({ position, hipShift = 0, highlightCradle = false }) {
   )
 }
 
+function PitchLinkagePilot({ leverTip }) {
+  const skin = '#c47c5d'
+  const clothing = '#35545b'
+  const shoulder = [-1.43, -0.08, 0.2]
+  const elbow = [-1.12, 0.02, 0.52]
+
+  return (
+    <group>
+      <mesh position={[-1.72, -0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <capsuleGeometry args={[0.18, 0.76, 6, 12]} />
+        <meshStandardMaterial color={clothing} roughness={0.88} />
+      </mesh>
+      <mesh position={[-1.06, -0.12, 0]}>
+        <sphereGeometry args={[0.2, 14, 10]} />
+        <meshStandardMaterial color={skin} roughness={0.92} />
+      </mesh>
+      <Beam from={[-2.05, -0.26, -0.08]} to={[-2.5, -0.32, -0.3]} radius={0.09} color={clothing} />
+      <Beam from={[-2.05, -0.26, 0.08]} to={[-2.48, -0.32, 0.32]} radius={0.09} color={clothing} />
+      <Beam from={shoulder} to={elbow} radius={0.075} color={clothing} />
+      <Beam from={elbow} to={leverTip} radius={0.065} color={skin} />
+      <LinkageJoint position={shoulder} color={clothing} radius={0.09} />
+      <LinkageJoint position={elbow} color={skin} radius={0.075} />
+      <LinkageJoint position={leverTip} color={skin} radius={0.105} />
+    </group>
+  )
+}
+
 function ControlLinkageModel({ type, value, inputValue = value, isIsolated = false }) {
   const radians = value * Math.PI / 180
   const fabric = '#f2cf67'
@@ -669,55 +697,104 @@ function ControlLinkageModel({ type, value, inputValue = value, isIsolated = fal
   if (type === 'pitch') {
     const command = clamp(value / 12, -1, 1)
     const leverAngle = Math.PI / 2 - command * 0.48
-    const leverPivot = [-1.48, -0.3, 0.08]
+    const leverPivot = [-0.78, -0.42, 0.84]
     const leverTip = [
       leverPivot[0] + Math.cos(leverAngle) * 0.78,
       leverPivot[1] + Math.sin(leverAngle) * 0.78,
       leverPivot[2],
     ]
     const surfaceDeflection = -radians * 2.2
-    const hornPoint = (y, z) => {
-      const x = -0.14
-      return [
-        1.42 + x * Math.cos(surfaceDeflection) - y * Math.sin(surfaceDeflection),
-        0.19 + x * Math.sin(surfaceDeflection) + y * Math.cos(surfaceDeflection),
+    const elevatorPivot = [1.72, 0.08, 0]
+    const elevatorPoint = (x, y, z) => (
+      [
+        elevatorPivot[0] + x * Math.cos(surfaceDeflection) - y * Math.sin(surfaceDeflection),
+        elevatorPivot[1] + x * Math.sin(surfaceDeflection) + y * Math.cos(surfaceDeflection),
         z,
       ]
-    }
-    const upperHorn = hornPoint(0.3, 0.08)
-    const lowerHorn = hornPoint(-0.3, -0.08)
+    )
+    const upperHorn = elevatorPoint(-0.08, 0.3, 0.82)
+    const lowerHorn = elevatorPoint(-0.08, -0.3, 0.82)
+    const drumAngle = -command * 0.48
+    const drumPoint = (offset) => [
+      leverPivot[0] + Math.cos(drumAngle + offset) * 0.16,
+      leverPivot[1] + Math.sin(drumAngle + offset) * 0.16,
+      0.84,
+    ]
+    const purpleStart = drumPoint(Math.PI / 2)
+    const goldStart = drumPoint(-Math.PI / 2)
+    const crankCenter = [1.25, -0.34, 0.82]
+    const crankAngle = command * 0.34
+    const crankPoint = (offset) => [
+      crankCenter[0] + Math.cos(crankAngle + offset) * 0.2,
+      crankCenter[1] + Math.sin(crankAngle + offset) * 0.2,
+      crankCenter[2],
+    ]
+    const crankUpper = crankPoint(Math.PI / 2)
+    const crankLower = crankPoint(-Math.PI / 2)
+    const ghostTip = (direction) => [
+      leverPivot[0] + Math.cos(Math.PI / 2 + direction * 0.48) * 0.78,
+      leverPivot[1] + Math.sin(Math.PI / 2 + direction * 0.48) * 0.78,
+      leverPivot[2],
+    ]
+    const motionArc = Array.from({ length: 17 }, (_, index) => {
+      const angle = Math.PI / 2 - 0.48 + (index / 16) * 0.96
+      return [
+        leverPivot[0] + Math.cos(angle) * 0.91,
+        leverPivot[1] + Math.sin(angle) * 0.91,
+        leverPivot[2] + 0.02,
+      ]
+    })
     return (
-      <group position={[0, 0.03, 0]}>
-        <LinkagePilot position={[-2.35, -0.02, 0]} />
-        <Beam from={[-1.95, 0.1, 0.05]} to={leverTip} radius={0.035} color="#c47c5d" />
-        <Beam from={leverPivot} to={leverTip} radius={0.045} color={frame} />
-        <LinkageJoint position={leverPivot} color="#4b3d55" radius={0.09} />
-        <LinkageJoint position={leverTip} color="#d79a74" radius={0.075} />
+      <group position={[0, 0.04, 0]}>
+        <mesh position={[-1.62, -0.58, 0]} receiveShadow>
+          <boxGeometry args={[2.45, 0.06, 2.15]} />
+          <meshStandardMaterial color={fabric} transparent opacity={0.2} roughness={0.92} depthWrite={false} />
+        </mesh>
+        <PitchLinkagePilot leverTip={leverTip} />
 
-        <Beam from={[-1.6, -0.57, -0.28]} to={[1.45, -0.57, -0.28]} radius={0.028} color={frame} />
-        <Beam from={[-1.6, -0.57, 0.28]} to={[1.45, -0.57, 0.28]} radius={0.028} color={frame} />
-        <Line points={[leverPivot, [-0.72, -0.34, 0.08], [0.56, -0.34, 0.08], upperHorn]} color="#76569b" lineWidth={2.8} />
-        <Line points={[leverPivot, [-0.72, -0.49, -0.08], [0.56, -0.49, -0.08], lowerHorn]} color="#d2a43d" lineWidth={2.1} />
-        <LinkageJoint position={[-0.72, -0.41, 0]} color="#76569b" />
-        <LinkageJoint position={[0.56, -0.41, 0]} color="#76569b" />
-        <Beam from={[1.42, -0.18, 0]} to={[1.42, 0.42, 0]} radius={0.035} color={frame} />
+        <Line points={[[leverPivot[0], leverPivot[1], leverPivot[2]], ghostTip(-1)]} color="#76569b" lineWidth={2} transparent opacity={0.2} />
+        <Line points={[[leverPivot[0], leverPivot[1], leverPivot[2]], ghostTip(1)]} color="#76569b" lineWidth={2} transparent opacity={0.2} />
+        <Line points={motionArc} color="#76569b" lineWidth={2.2} transparent opacity={0.56} />
+        <Beam from={leverPivot} to={leverTip} radius={0.045} color="#76569b" />
+        <Beam from={[-0.78, -0.42, -0.82]} to={[-0.78, -0.42, 0.86]} radius={0.035} color={frame} />
+        <mesh position={[-0.78, -0.42, 0.79]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.18, 0.18, 0.16, 20]} />
+          <meshStandardMaterial color="#4b3d55" roughness={0.72} />
+        </mesh>
+        <LinkageJoint position={leverPivot} color="#4b3d55" radius={0.08} />
 
-        {[-0.23, 0.23].map((y) => (
-          <mesh key={`ghost-${y}`} position={[2.04, 0.19 + y, 0]}>
-            <boxGeometry args={[1.25, 0.09, 0.58]} />
-            <meshStandardMaterial color={ghost} transparent opacity={0.18} roughness={0.92} depthWrite={false} />
+        {[-0.82, 0.82].map((z) => (
+          <Beam key={z} from={[-0.58, -0.53, z]} to={[1.78, -0.53, z]} radius={0.027} color={frame} />
+        ))}
+        <Line points={[purpleStart, [0.12, -0.28, 0.84], [0.68, -0.28, 0.84], crankUpper]} color="#76569b" lineWidth={3} />
+        <Line points={[goldStart, [0.12, -0.5, 0.84], [0.68, -0.5, 0.84], crankLower]} color="#d2a43d" lineWidth={2.5} />
+        {[0.12, 0.68].map((x) => <LinkageJoint key={x} position={[x, -0.39, 0.84]} color="#76569b" radius={0.07} />)}
+        <Beam from={[1.25, -0.34, -0.82]} to={[1.25, -0.34, 0.86]} radius={0.035} color={frame} />
+        <Beam from={crankLower} to={crankUpper} radius={0.04} color="#76569b" />
+        <LinkageJoint position={crankCenter} color="#4b3d55" radius={0.085} />
+        <Beam from={crankUpper} to={upperHorn} radius={0.025} color="#76569b" />
+        <Beam from={crankLower} to={lowerHorn} radius={0.025} color="#d2a43d" />
+
+        {[-0.82, 0.82].map((z) => (
+          <Beam key={`post-${z}`} from={[1.72, -0.53, z]} to={[1.72, 0.56, z]} radius={0.028} color={frame} />
+        ))}
+        {[-0.3, 0.3].map((y) => (
+          <mesh key={`ghost-${y}`} position={[2.08, elevatorPivot[1] + y, 0]}>
+            <boxGeometry args={[0.72, 0.06, 1.9]} />
+            <meshStandardMaterial color={ghost} transparent opacity={0.16} roughness={0.92} depthWrite={false} />
           </mesh>
         ))}
-        <group position={[1.42, 0.19, 0]} rotation={[0, 0, surfaceDeflection]}>
-          {[-0.23, 0.23].map((y) => (
-            <mesh key={y} position={[0.62, y, 0]} castShadow>
-              <boxGeometry args={[1.25, 0.09, 0.58]} />
+        <group position={elevatorPivot} rotation={[0, 0, surfaceDeflection]}>
+          {[-0.3, 0.3].map((y) => (
+            <mesh key={y} position={[0.36, y, 0]} castShadow>
+              <boxGeometry args={[0.72, 0.065, 1.9]} />
               <meshStandardMaterial color={fabric} roughness={0.9} />
             </mesh>
           ))}
-          <Beam from={[0, -0.34, 0]} to={[0, 0.34, 0]} radius={0.027} color={frame} />
-          <Beam from={[0, 0, 0]} to={[-0.14, 0.3, 0.08]} radius={0.035} color="#76569b" />
-          <Beam from={[0, 0, 0]} to={[-0.14, -0.3, -0.08]} radius={0.03} color="#d2a43d" />
+          <Beam from={[0, -0.38, -0.9]} to={[0, 0.38, -0.9]} radius={0.025} color={frame} />
+          <Beam from={[0, -0.38, 0.9]} to={[0, 0.38, 0.9]} radius={0.025} color={frame} />
+          <Beam from={[0, -0.3, -0.9]} to={[0, -0.3, 0.9]} radius={0.025} color={frame} />
+          <Beam from={[0, 0.3, -0.9]} to={[0, 0.3, 0.9]} radius={0.025} color={frame} />
         </group>
       </group>
     )
@@ -798,6 +875,7 @@ function ControlLinkageModel({ type, value, inputValue = value, isIsolated = fal
 
 function ControlExplodedView({ type, value, inputValue = value }) {
   const meta = CONTROL_LINKAGE_META[type]
+  const stages = meta.stages ?? [meta.input, meta.linkage, meta.output]
   const isIsolated = type === 'yaw' && Math.abs(value - inputValue * 1.1) > 0.75
   const container = useRef()
   const [loaded, setLoaded] = useState(() => typeof IntersectionObserver === 'undefined')
@@ -816,10 +894,10 @@ function ControlExplodedView({ type, value, inputValue = value }) {
   }, [loaded])
 
   return (
-    <div ref={container} className={`control-exploded control-exploded--${type}`} role="img" aria-label={isIsolated ? `Lab rudder isolate moves the twin rudders to ${value.toFixed(1)} degrees while the historical hip cradle remains at ${inputValue.toFixed(1)} degrees` : `${meta.input} moves the ${meta.linkage.toLowerCase()}, which moves the ${meta.output.toLowerCase()} to ${value.toFixed(1)} degrees`}>
+    <div ref={container} className={`control-exploded control-exploded--${type}`} style={{ '--linkage-stage-count': stages.length }} role="img" aria-label={isIsolated ? `Lab rudder isolate moves the twin rudders to ${value.toFixed(1)} degrees while the historical hip cradle remains at ${inputValue.toFixed(1)} degrees` : `${meta.input} moves the ${meta.linkage.toLowerCase()}, which moves the ${meta.output.toLowerCase()} to ${value.toFixed(1)} degrees`}>
       <div className="control-exploded__orientation"><span>{meta.orientation}</span><span>MOTION ENLARGED</span></div>
       <div className="control-exploded__stages" aria-hidden="true">
-        <span><i>1</i>{meta.input}</span><span><i>2</i>{meta.linkage}</span><span><i>3</i>{meta.output}</span>
+        {stages.map((stage, index) => <span key={stage}><i>{index + 1}</i>{stage}</span>)}
       </div>
       {loaded && (
         <Canvas orthographic camera={meta.camera} frameloop="demand" dpr={[1, 1.5]}>
@@ -830,7 +908,7 @@ function ControlExplodedView({ type, value, inputValue = value }) {
         </Canvas>
       )}
       {isIsolated && <span className="control-exploded__lab-badge">LAB RUDDER OVERRIDE</span>}
-      <div className="control-exploded__readout"><b>{isIsolated ? 'LAB ISOLATE' : meta.input}</b><i aria-hidden="true">→</i><span>{meta.output}</span><output>{value >= 0 ? '+' : ''}{value.toFixed(1)}°</output></div>
+      <div className="control-exploded__readout"><b>{isIsolated ? 'LAB ISOLATE' : type === 'pitch' ? 'HAND MOVES FORE / AFT' : meta.input}</b><i aria-hidden="true">→</i><span>{meta.output}</span><output>{value >= 0 ? '+' : ''}{value.toFixed(1)}°</output></div>
     </div>
   )
 }
@@ -1159,7 +1237,7 @@ export function WrightLab() {
             <header><span className="axis-chip axis-chip--pitch">PITCH</span><h3>The forward elevator</h3></header>
             <div className="mechanism-chain"><span><b>1 · Input</b>Left hand moves lever fore and aft</span><i>→</i><span><b>2 · Linkage</b>Shaft pulley pulls chain and wire</span><i>→</i><span><b>3 · Output</b>Control rod tilts both elevators</span></div>
             <ControlExplodedView type="pitch" value={telemetry.elevator} />
-            <p>The pilot moved a lever to rotate the two fabric surfaces ahead of the wings. Their aerodynamic force acts far in front of the center of mass, creating a nose-up or nose-down moment. Nose-up pitch increases wing angle of attack and lift; nose-down pitch reduces it.</p>
+            <p>Lying prone, the pilot pushed or pulled the wooden lever with his left hand. The lever rotated a shaft and pulley; chain and wire carried that movement to a front crank and rods that tilted both fabric elevators together. Their aerodynamic force acts far ahead of the center of mass, creating a nose-up or nose-down moment.</p>
             <Equation caption="A modest elevator force can rotate the aircraft because the forward outriggers give it a long lever arm."
               values={`elevator command ${telemetry.elevator.toFixed(1)}° · vertical speed ${telemetry.verticalSpeed >= 0 ? '+' : ''}${telemetry.verticalSpeed.toFixed(1)} m/s`}>
               τ<sub>pitch</sub> = F<sub>elevator</sub> × lever arm
